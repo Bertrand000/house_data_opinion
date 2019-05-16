@@ -10,6 +10,7 @@ import threading
 import random
 import re
 import pymysql
+import uuid
 from bs4 import BeautifulSoup
 
 # 获取配置
@@ -189,16 +190,60 @@ class TengxunHouse(threading.Thread):
         # 获取标题
         title = BS.find("title").text
         # 获取时间
-        pub_time = BS.find("span", _class="a_time")
+        pub_time = BS.find("span", class_="a_time").text
         # 正则获取页面js中的cmt参数值
         cmt_id = re.findall("cmt_id = (.+?);", resp.text)
         if cmt_id:
             cmt_id = cmt_id[0]
         # 获取评论数
-        discuss_num = self.get_discuss_number(cmt_id) if cmt_id else 0
+        discuss_num = int(self.get_discuss_number(cmt_id)) if cmt_id else 0
         # 获取评论以及回复内容 (评论内容腾讯设置一次请求最多拿30条，鉴于代码复杂度，每条新闻最多取30条评论)
-        discuss = self.get_discuss(cmt_id) if cmt_id else ""
-        print(discuss)
+        discuss_re = self.get_discuss(cmt_id) if cmt_id else ""
+        my_uuid = str(uuid.uuid4())
+        # 保存数据
+        self.save_data(my_uuid,cmt_id,title,pub_time,discuss_num, context,discuss_re)
+
+    def save_data(self, uuid,cmt_id, title, pub_time, discuss_num, new_context,discuss_redis):
+        '''
+        mysql保存数据
+        :param title: 标题
+        :param time: 时间
+        :param discuss_num: 评论数
+        :param discuss: 评论
+        :param re_discuss: 评论回复
+        :return:
+        '''
+        # 保存新闻
+        news_sql = '''
+        REPLACE INTO
+                          news(cmt_id,title,pub_time,discuss_num,uuid,context)
+                          VALUES(%s,%s,%s,%s,%s,%s)
+        '''
+        # 保存评论
+        discuss_sql = '''
+        REPLACE INTO
+                          discuss(content,dis_time,pid,new_uuid)
+                          VALUES(%s,%s,%s,%s)
+        '''
+        # 评论回复
+        re_discuss_sql = '''
+                REPLACE INTO
+                                  re_discuss(content,redis_time,pid,new_uuid)
+                                  VALUES(%s,%s,%s,%s)
+                '''
+        # 保存评论回复
+        try:
+            self.db_cursor.execute(news_sql,(cmt_id if cmt_id else "0", str(title), str(pub_time), discuss_num, uuid, str(new_context)))
+            if discuss_num:
+                if discuss_redis['pinlun']:
+                    for discuss in discuss_redis['pinlun']:
+                        self.db_cursor.execute(discuss_sql, (discuss['content'], discuss['time'], discuss['id'], uuid))
+                if discuss_redis['huifu']:
+                    for re_dis in discuss_redis['huifu']:
+                        self.db_cursor.execute(re_discuss_sql,(re_dis['content'],re_dis['time'],re_dis['parent'],uuid))
+            self.db.commit()
+        except Exception as e:
+            print(e)
 
     def get_discuss_number(self, cmt_id):
         '''
@@ -216,9 +261,10 @@ class TengxunHouse(threading.Thread):
         :return: json key is pinglun or huifu
         '''
         resp = requests.session().get(self.discuss_url_temp % cmt_id, headers=self.headers)
+        # resp = requests.session().get(self.discuss_url_temp % "2300201266", headers=self.headers)
         json_data = json.loads(resp.text)
         test = jsonpath.jsonpath(json_data, "$.data.oriCommList")
-        return {"pinlun": jsonpath.jsonpath(json_data,"$.data.oriCommList")[0], "huifu": jsonpath.jsonpath(json_data,"$.data.repCommList")[0]}
+        return {"pinlun": jsonpath.jsonpath(json_data,"$.data.oriCommList")[0], "huifu": jsonpath.jsonpath(json_data, "$.data.repCommList.*.*")}
 
     def manage(self):
         '''
@@ -252,7 +298,7 @@ if __name__ == '__main__':
     threads = []
     threads_num = int(cfg.get("sys", "thread_num"))
     for i in range(0, threads_num):
-        m = FengHuang(i, "thread" + str(i))
+        m = TengxunHouse(i, "thread" + str(i))
         threads.append(m)
 
     for i in range(0, threads_num):

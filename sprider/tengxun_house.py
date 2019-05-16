@@ -21,7 +21,7 @@ cfg.read("../config.ini")
  @File  : tengxun_house.py
  @Author: Li
  @Date  : 2019/5/14
- @Desc  : 凤凰房产
+ @Desc  : 房产
 '''
 class TengxunHouse(threading.Thread):
     pool = None
@@ -184,13 +184,18 @@ class TengxunHouse(threading.Thread):
         BS = BeautifulSoup(resp.text, "html.parser")
         # 获取所有P标签内的内容
         P = BS.find_all("p")
+
         context = ""
         for p in P:
             context += p.text
         # 获取标题
         title = BS.find("title").text
         # 获取时间
-        pub_time = BS.find("span", class_="a_time").text
+        pub_time = BS.find("span", class_="a_time")
+        # 若pub_time为空则按新版数据格式匹配
+        if not pub_time:
+            pub_time = BS.find("span", class_="article-time")
+        pub_time = pub_time.text
         # 正则获取页面js中的cmt参数值
         cmt_id = re.findall("cmt_id = (.+?);", resp.text)
         if cmt_id:
@@ -252,7 +257,6 @@ class TengxunHouse(threading.Thread):
         '''
         resp = requests.session().get(self.discuss_num_url_temp%cmt_id,headers=self.headers)
         json_data = json.loads(resp.text)
-        test = jsonpath.jsonpath(json_data,"$.data.commentnum")
         return jsonpath.jsonpath(json_data,"$.data.commentnum")[0]
 
     def get_discuss(self, cmt_id):
@@ -263,7 +267,6 @@ class TengxunHouse(threading.Thread):
         resp = requests.session().get(self.discuss_url_temp % cmt_id, headers=self.headers)
         # resp = requests.session().get(self.discuss_url_temp % "2300201266", headers=self.headers)
         json_data = json.loads(resp.text)
-        test = jsonpath.jsonpath(json_data, "$.data.oriCommList")
         return {"pinlun": jsonpath.jsonpath(json_data,"$.data.oriCommList")[0], "huifu": jsonpath.jsonpath(json_data, "$.data.repCommList.*.*")}
 
     def manage(self):
@@ -279,9 +282,12 @@ class TengxunHouse(threading.Thread):
         # 遍历所有队列中所有值
         while int(self.redis_con.llen("user_queue"))!=0:
             name_url = str(self.redis_con.rpop("user_queue").decode('utf-8'))
-            print("正在处理name_url：" + name_url)
+            print("正在处理:" + name_url)
             # 处理新闻页面信息
-            self.get_new_data(name_url)
+            try:
+                self.get_new_data(name_url)
+            except Exception as e:
+                print("异常的url:"+name_url)
             # 设置user-agent
             self.set_random_ua()
             # 减缓爬虫速度

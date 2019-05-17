@@ -1,4 +1,6 @@
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python
+# encoding: utf-8
+
 import configparser
 import redis
 import requests
@@ -16,18 +18,16 @@ from bs4 import BeautifulSoup
 # 获取配置
 cfg = configparser.ConfigParser()
 cfg.read("../config.ini")
+'''
+
+@author: Mr.Chen
+@file: wangyi_house.py
+@time: 2019/5/17 9:49
 
 '''
- @File  : tengxun_house.py
- @Author: Li
- @Date  : 2019/5/14
- @Desc  : 房产
-'''
-class TengxunHouse(threading.Thread):
+class WangyiHouse(threading.Thread):
     pool = None
     config = None
-    # redis带抓取用户队列最大长度
-    max_queue_len = 1000
     # 默认等待时间
     sleep_time = 1
     header_url = "https://cd.house.qq.com"
@@ -36,20 +36,7 @@ class TengxunHouse(threading.Thread):
     # 评论接口模板
     discuss_url_temp = "https://coral.qq.com/article/%s/comment/v2?orinum=30&pageflag=0&orirepnum=500"
     # 初始url
-    index_url = [
-            #   全国热点
-            "https://cd.house.qq.com/c/qgrd_%s.htm",
-            #   房产新闻
-           "https://cd.house.qq.com/c/firstnewslist_%s.htm",
-            #   楼市政策
-           "http://cd.house.qq.com/c/lszc_%s.htm",
-            #   土地市场
-           "http://cd.house.qq.com/c/tdsc_%s.htm",
-            #   数据调查
-           "http://cd.house.qq.com/c/sjdc_%s.htm",
-            #   置业宝典
-           "http://cd.house.qq.com/c/zybd_%s.htm"
-       ]
+    index_url = "http://xf.house.163.com/cd/es/searchProducts?district=0&plate=0&metro=0&metro_station=0&price=0&total_price=0&huxing=0&property=0&base_kpsj=0&base_lpts=0&buystatus=0&base_hxwz=0&param_zxqk=0&orderby=1&use_priority_str=buystatus&pageSize=10000&pageno=1"
     headers = {
         "Cookie":"TEMP_USER_ID=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1aWQiOiI1Y2Q5NmNmZDM3NzIwIiwidGltZSI6MTU1Nzc1MzA4NX0.bC7tWfWBI4EZnfyrruTHQtIBh7U-wQ5mhpN-qxO5VaU; userid=1557752814463_335ita9276; ifh_site=21057%2Ccd; city_redirected=12; ifengRotator_iis3_c=7; sensorsdata2015jssdkcross=%7B%22distinct_id%22%3A%2216ab14d7fdd1-00569b86bd20bd-76212462-1440000-16ab14d7fe0ba%22%2C%22%24device_id%22%3A%2216ab14d7fdd1-00569b86bd20bd-76212462-1440000-16ab14d7fe0ba%22%2C%22props%22%3A%7B%22%24latest_traffic_source_type%22%3A%22%E7%9B%B4%E6%8E%A5%E6%B5%81%E9%87%8F%22%2C%22%24latest_referrer%22%3A%22%22%2C%22%24latest_referrer_host%22%3A%22%22%2C%22%24latest_search_keyword%22%3A%22%E6%9C%AA%E5%8F%96%E5%88%B0%E5%80%BC_%E7%9B%B4%E6%8E%A5%E6%89%93%E5%BC%80%22%7D%7D; Hm_lvt_2618c9646a4a7be2e5f93653be3d5429=1557752814,1557833624; Hm_lpvt_2618c9646a4a7be2e5f93653be3d5429=1557834105"
         ,"User-Agent":"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 UBrowser/6.2.4098.3 Safari/537.36"
@@ -62,7 +49,7 @@ class TengxunHouse(threading.Thread):
         'Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; 360SE)',
     )
 
-    # 被抓取新闻计数
+    # 被抓取楼盘数计数
     counter = 0
 
     def __init__(self,threadID=1, name=''):
@@ -120,33 +107,23 @@ class TengxunHouse(threading.Thread):
         获取首页
         :return:
         '''
-        for url in self.index_url:
-            # 获取前14页
-            for i in range(1,15):
-                # 获取到响应数据处理获取url到redis队列
-                resp = requests.session().get(url=url%str(i),headers=self.headers)
-                # 减缓速度
-                time.sleep(self.sleep_time)
-                self.url_data(resp.text)
+        # 获取到响应数据处理获取url到redis队列
+        resp = requests.session().get(url=self.index_url, headers=self.headers)
+        # 分析首页数据
+        self.url_data(resp.text)
 
-    def url_data(self,index_html):
+    def url_data(self,json_data):
         '''
         分析获取数据
         :return:
         '''
-        if not index_html:
+        if not json_data:
+            print("未获取到首页数据，请检查网络或接口地址")
             return
-        BS = BeautifulSoup(index_html, "html.parser")
-        user_a = BS.find_all("a")
-        for a in user_a:
-            if a:
-                href = a.get('href')
-                # test = href[(href.rindex('/')) + 1:]
-                self.add_wait_user(self.header_url + href)
-            else:
-                print("获取初始页面 a 标签失败，跳过")
-                continue
-
+        # 基础信息list，地址 -> lpts -> rzsj -> yd
+        json_obj = json.loads(json_data)
+        data = jsonpath.jsonpath(json_obj,"$.dataList[*].baseinfo.base_dz")
+        print(data)
     # 加入待抓取用户队列，先用redis判断是否已被抓取过
     def add_wait_user(self, name_url):
         # 判断是否已抓取
@@ -277,24 +254,25 @@ class TengxunHouse(threading.Thread):
         方法入口
         :return:
         '''
-        # 判断是否取过首页信息
-        if not int(self.redis_con.hlen("already_get_index_url")) > 2000:
-            self.index_data()
-        # 出队列获取用户name_url redis取出的是byte，要decode成utf-8
-        # name_url = str(self.redis_con.rpop("user_queue").decode('utf-8'))
-        # 遍历所有队列中所有值
-        while int(self.redis_con.llen("user_queue"))!=0:
-            name_url = str(self.redis_con.rpop("user_queue").decode('utf-8'))
-            print("正在处理:" + name_url)
-            # 处理新闻页面信息
-            try:
-                self.get_new_data(name_url)
-            except Exception as e:
-                print("异常的url:"+name_url)
-            # 设置user-agent
-            self.set_random_ua()
-            # 减缓爬虫速度
-            time.sleep(self.sleep_time)
+        self.index_data()
+        # # 判断是否取过首页信息
+        # if not int(self.redis_con.hlen("already_get_index_url")) > 2000:
+        #     self.index_data()
+        # # 出队列获取用户name_url redis取出的是byte，要decode成utf-8
+        # # name_url = str(self.redis_con.rpop("user_queue").decode('utf-8'))
+        # # 遍历所有队列中所有值
+        # while int(self.redis_con.llen("user_queue"))!=0:
+        #     name_url = str(self.redis_con.rpop("user_queue").decode('utf-8'))
+        #     print("正在处理:" + name_url)
+        #     # 处理新闻页面信息
+        #     try:
+        #         self.get_new_data(name_url)
+        #     except Exception as e:
+        #         print("异常的url:"+name_url)
+        #     # 设置user-agent
+        #     self.set_random_ua()
+        #     # 减缓爬虫速度
+        #     time.sleep(self.sleep_time)
 
     def run(self):
         print(self.name + " is running")
@@ -307,7 +285,7 @@ if __name__ == '__main__':
     threads = []
     threads_num = int(cfg.get("sys", "thread_num"))
     for i in range(0, threads_num):
-        m = TengxunHouse(i, "thread" + str(i))
+        m = WangyiHouse(i, "thread" + str(i))
         threads.append(m)
 
     for i in range(0, threads_num):

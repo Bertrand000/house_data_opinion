@@ -15,7 +15,7 @@ from bs4 import BeautifulSoup
 
 # 获取配置
 cfg = configparser.ConfigParser()
-cfg.read("../config.ini")
+cfg.read("./config.ini")
 
 '''
  @File  : tengxun_house.py
@@ -86,19 +86,20 @@ class TengxunHouse(threading.Thread):
 
         self.threadLock = threading.Lock()
         # 初始化数据库连接
-        try:
-            db_host = self.config.get("db", "host")
-            db_port = int(self.config.get("db", "port"))
-            db_user = self.config.get("db", "user")
-            db_pass = self.config.get("db", "password")
-            db_db = self.config.get("db", "db")
-            db_charset = self.config.get("db", "charset")
-            self.db = pymysql.connect(host=db_host, port=db_port, user=db_user, passwd=db_pass, db=db_db,
-                                      charset=db_charset)
-            self.db_cursor = self.db.cursor()
-        except Exception as err:
-            print("请检查数据库配置")
-            sys.exit()
+        # try:
+        #     db_host = self.config.get("db", "host")
+        #     db_port = int(self.config.get("db", "port"))
+        #     db_user = self.config.get("db", "user")
+        #     db_pass = self.config.get("db", "password")
+        #     db_db = self.config.get("db", "db")
+        #     db_charset = self.config.get("db", "charset")
+        #     self.db = pymysql.connect(host=db_host, port=db_port, user=db_user, passwd=db_pass, db=db_db,
+        #                               charset=db_charset)
+        #     self.db_cursor = self.db.cursor()
+        # except Exception as err:
+        #     print("请检查数据库配置")
+        #     print(err)
+        #     sys.exit()
 
         # 初始化redis连接
         try:
@@ -124,10 +125,16 @@ class TengxunHouse(threading.Thread):
             # 获取前14页
             for i in range(1,15):
                 # 获取到响应数据处理获取url到redis队列
-                resp = requests.session().get(url=url%str(i),headers=self.headers)
-                # 减缓速度
+                try:
+                    resp = requests.session().get(url=url%str(i),headers=self.headers,timeout=5)
+                    # 减缓速度
+                except Exception as e:
+                    print("链接超时")
                 time.sleep(self.sleep_time)
                 self.url_data(resp.text)
+
+
+
 
     def url_data(self,index_html):
         '''
@@ -155,7 +162,8 @@ class TengxunHouse(threading.Thread):
             print(name_url + " 加入队列")
             self.redis_con.hset('already_get_index_url', name_url, 1)
             self.redis_con.lpush('user_queue', name_url)
-            print("添加用户 " + name_url + "到队列")
+        else:
+            print("链接已获取过")
 
     # 获取页面出错移出redis
     def del_already_user(self, name_url):
@@ -180,86 +188,105 @@ class TengxunHouse(threading.Thread):
         获取新闻页信息
         :return:
         '''
-        resp = requests.session().get(url,headers=self.headers)
-        BS = BeautifulSoup(resp.text, "html.parser")
-        # 获取所有P标签内的内容
-        P = BS.find_all("p")
-
-        context = ""
-        for p in P:
-            context += p.text
-        # 获取标题
-        title = BS.find("title").text
-        # 获取时间
-        pub_time = BS.find("span", class_="a_time")
-        # 若pub_time为空则按新版数据格式匹配
-        if not pub_time:
-            pub_time = BS.find("span", class_="article-time")
-        # 若pub_time为空则更新版数据格式匹配
-        if not pub_time:
-            pub_time = BS.find("span", class_="pubTime")
-        pub_time = pub_time.text
-        # 正则获取页面js中的cmt参数值
-        cmt_id = re.findall("cmt_id = (.+?);", resp.text)
-        if cmt_id:
-            cmt_id = cmt_id[0]
-        # 获取评论数
-        discuss_num = int(self.get_discuss_number(cmt_id)) if cmt_id else 0
-        # 获取评论以及回复内容 (评论内容腾讯设置一次请求最多拿30条，鉴于代码复杂度，每条新闻最多取30条评论)
-        discuss_re = self.get_discuss(cmt_id) if cmt_id else ""
-        my_uuid = str(uuid.uuid4())
-        # 保存数据
-        self.save_data(my_uuid,cmt_id,title,pub_time,discuss_num, context,discuss_re)
-
-    def save_data(self, uuid,cmt_id, title, pub_time, discuss_num, new_context,discuss_redis):
-        '''
-        mysql保存数据
-        :param title: 标题
-        :param time: 时间
-        :param discuss_num: 评论数
-        :param discuss: 评论
-        :param re_discuss: 评论回复
-        :return:
-        '''
-        # 保存新闻
-        news_sql = '''
-        REPLACE INTO
-                          news(cmt_id,title,pub_time,discuss_num,uuid,context)
-                          VALUES(%s,%s,%s,%s,%s,%s)
-        '''
-        # 保存评论
-        discuss_sql = '''
-        REPLACE INTO
-                          discuss(content,dis_time,pid,new_uuid)
-                          VALUES(%s,%s,%s,%s)
-        '''
-        # 评论回复
-        re_discuss_sql = '''
-                REPLACE INTO
-                                  re_discuss(content,redis_time,pid,new_uuid)
-                                  VALUES(%s,%s,%s,%s)
-                '''
-        # 保存评论回复
+        json_data = {}
+        resp = requests.session().get(url,headers=self.headers,timeout=5)
         try:
-            self.db_cursor.execute(news_sql,(cmt_id if cmt_id else "0", str(title), str(pub_time), discuss_num, uuid, str(new_context)))
-            if discuss_num:
-                if discuss_redis['pinlun']:
-                    for discuss in discuss_redis['pinlun']:
-                        self.db_cursor.execute(discuss_sql, (discuss['content'], discuss['time'], discuss['id'], uuid))
-                if discuss_redis['huifu']:
-                    for re_dis in discuss_redis['huifu']:
-                        self.db_cursor.execute(re_discuss_sql,(re_dis['content'],re_dis['time'],re_dis['parent'],uuid))
-            self.db.commit()
+            BS = BeautifulSoup(resp.text, "html.parser")
+            # 获取所有P标签内的内容
+            P = BS.find_all("p")
+
+            context = ""
+            for p in P:
+                context += p.text
+            json_data['context'] = str(P)
+            # 获取标题
+            title = BS.find("title").text
+            json_data['title'] = title
+            # 获取时间
+            pub_time = BS.find("span", class_="a_time")
+
+            # 若pub_time为空则按新版数据格式匹配
+            if not pub_time:
+                pub_time = BS.find("span", class_="article-time")
+            # 若pub_time为空则更新版数据格式匹配
+            if not pub_time:
+                pub_time = BS.find("span", class_="pubTime")
+            pub_time = pub_time.text
+            json_data['pub_time'] = pub_time
+            # 正则获取页面js中的cmt参数值
+            cmt_id = re.findall("cmt_id = (.+?);", resp.text)
+            if cmt_id:
+                cmt_id = cmt_id[0]
+            # 获取评论数
+            discuss_num = int(self.get_discuss_number(cmt_id)) if cmt_id else 0
+            json_data['discuss_num'] = discuss_num
+            # 获取评论以及回复内容 (评论内容腾讯设置一次请求最多拿30条，鉴于代码复杂度，每条新闻最多取30条评论)
+            discuss_re = self.get_discuss(cmt_id) if cmt_id else ["",""]
+            json_data['discuss'] = ""
+            json_data['huifu'] = ""
+            if discuss_re[0]:
+                json_data['discuss'] = discuss_re[0]
+            if discuss_re[1]:
+                json_data['huifu'] = discuss_re[1]
+            self.redis_con.lpush("tengxun_news",str(json_data))
         except Exception as e:
             print(e)
+        # my_uuid = str(uuid.uuid4())
+        # 保存数据
+        # self.save_data(my_uuid,cmt_id,title,pub_time,discuss_num, context,discuss_re)
+
+    # def save_data(self, uuid,cmt_id, title, pub_time, discuss_num, new_context,discuss_redis):
+    #     '''
+    #     mysql保存数据
+    #     :param title: 标题
+    #     :param time: 时间
+    #     :param discuss_num: 评论数
+    #     :param discuss: 评论
+    #     :param re_discuss: 评论回复
+    #     :return:
+    #     '''
+    #     # 保存新闻
+    #     news_sql = '''
+    #     REPLACE INTO
+    #                       news(cmt_id,title,pub_time,discuss_num,uuid,context)
+    #                       VALUES(%s,%s,%s,%s,%s,%s)
+    #     '''
+    #     # 保存评论
+    #     discuss_sql = '''
+    #     REPLACE INTO
+    #                       discuss(content,dis_time,pid,new_uuid)
+    #                       VALUES(%s,%s,%s,%s)
+    #     '''
+    #     # 评论回复
+    #     re_discuss_sql = '''
+    #             REPLACE INTO
+    #                               re_discuss(content,redis_time,pid,new_uuid)
+    #                               VALUES(%s,%s,%s,%s)
+    #             '''
+    #     # 保存评论回复
+    #     try:
+    #         self.db_cursor.execute(news_sql,(cmt_id if cmt_id else "0", str(title), str(pub_time), discuss_num, uuid, str(new_context)))
+    #         if discuss_num:
+    #             if discuss_redis['pinlun']:
+    #                 for discuss in discuss_redis['pinlun']:
+    #                     self.db_cursor.execute(discuss_sql, (discuss['content'], discuss['time'], discuss['id'], uuid))
+    #             if discuss_redis['huifu']:
+    #                 for re_dis in discuss_redis['huifu']:
+    #                     self.db_cursor.execute(re_discuss_sql,(re_dis['content'],re_dis['time'],re_dis['parent'],uuid))
+    #         self.db.commit()
+    #     except Exception as e:
+    #         print(e)
 
     def get_discuss_number(self, cmt_id):
         '''
         获取评论数
         :return:
         '''
-        resp = requests.session().get(self.discuss_num_url_temp%cmt_id,headers=self.headers)
-        json_data = json.loads(resp.text)
+        try:
+            resp = requests.session().get(self.discuss_num_url_temp%cmt_id,headers=self.headers,timeout=5)
+            json_data = json.loads(resp.text)
+        except Exception as e:
+            print(e)
         return jsonpath.jsonpath(json_data,"$.data.commentnum")[0]
 
     def get_discuss(self, cmt_id):
@@ -267,19 +294,22 @@ class TengxunHouse(threading.Thread):
         获取评论以及恢复
         :return: json key is pinglun or huifu
         '''
-        resp = requests.session().get(self.discuss_url_temp % cmt_id, headers=self.headers)
-        # resp = requests.session().get(self.discuss_url_temp % "2300201266", headers=self.headers)
-        json_data = json.loads(resp.text)
-        return {"pinlun": jsonpath.jsonpath(json_data,"$.data.oriCommList")[0], "huifu": jsonpath.jsonpath(json_data, "$.data.repCommList.*.*")}
+        content = []
+        try:
+            resp = requests.session().get(self.discuss_url_temp % cmt_id, headers=self.headers,timeout=5)
+            json_data = json.loads(resp.text)
+        except Exception as e:
+            print(e)
+        content.append(jsonpath.jsonpath(json_data, "$.data.oriCommList[*].content"))
+        content.append(jsonpath.jsonpath(json_data, "$.data.repCommList.*[*].content"))
+        return content
 
     def manage(self):
         '''
         方法入口
         :return:
         '''
-        # 判断是否取过首页信息
-        if not int(self.redis_con.hlen("already_get_index_url")) > 2000:
-            self.index_data()
+        self.index_data()
         # 出队列获取用户name_url redis取出的是byte，要decode成utf-8
         # name_url = str(self.redis_con.rpop("user_queue").decode('utf-8'))
         # 遍历所有队列中所有值

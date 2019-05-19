@@ -17,7 +17,7 @@ from bs4 import BeautifulSoup
 
 # 获取配置
 cfg = configparser.ConfigParser()
-cfg.read("../config.ini")
+cfg.read("./config.ini")
 '''
 
 @author: Mr.Chen
@@ -29,17 +29,13 @@ class WangyiHouse(threading.Thread):
     pool = None
     config = None
     # 默认等待时间
-    sleep_time = 1
-    header_url = "https://cd.house.qq.com"
-    # 评论数接口模板
-    discuss_num_url_temp = "https://coral.qq.com/article/%s/commentnum"
+    sleep_time = 0.3
     # 评论接口模板
-    discuss_url_temp = "https://coral.qq.com/article/%s/comment/v2?orinum=30&pageflag=0&orirepnum=500"
+    discuss_url_temp = "http://xf.house.163.com/cd/comment/%s.html"
     # 初始url
-    index_url = "http://xf.house.163.com/cd/es/searchProducts?district=0&plate=0&metro=0&metro_station=0&price=0&total_price=0&huxing=0&property=0&base_kpsj=0&base_lpts=0&buystatus=0&base_hxwz=0&param_zxqk=0&orderby=1&use_priority_str=buystatus&pageSize=10000&pageno=1"
+    index_url = "http://xf.house.163.com/cd/es/searchProducts?district=0&plate=0&metro=0&metro_station=0&price=0&total_price=0&huxing=0&property=0&base_kpsj=0&base_lpts=0&buystatus=0&base_hxwz=0&param_zxqk=0&orderby=1&use_priority_str=buystatus&pageSize=10&pageno=%s"
     headers = {
-        "Cookie":"TEMP_USER_ID=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1aWQiOiI1Y2Q5NmNmZDM3NzIwIiwidGltZSI6MTU1Nzc1MzA4NX0.bC7tWfWBI4EZnfyrruTHQtIBh7U-wQ5mhpN-qxO5VaU; userid=1557752814463_335ita9276; ifh_site=21057%2Ccd; city_redirected=12; ifengRotator_iis3_c=7; sensorsdata2015jssdkcross=%7B%22distinct_id%22%3A%2216ab14d7fdd1-00569b86bd20bd-76212462-1440000-16ab14d7fe0ba%22%2C%22%24device_id%22%3A%2216ab14d7fdd1-00569b86bd20bd-76212462-1440000-16ab14d7fe0ba%22%2C%22props%22%3A%7B%22%24latest_traffic_source_type%22%3A%22%E7%9B%B4%E6%8E%A5%E6%B5%81%E9%87%8F%22%2C%22%24latest_referrer%22%3A%22%22%2C%22%24latest_referrer_host%22%3A%22%22%2C%22%24latest_search_keyword%22%3A%22%E6%9C%AA%E5%8F%96%E5%88%B0%E5%80%BC_%E7%9B%B4%E6%8E%A5%E6%89%93%E5%BC%80%22%7D%7D; Hm_lvt_2618c9646a4a7be2e5f93653be3d5429=1557752814,1557833624; Hm_lpvt_2618c9646a4a7be2e5f93653be3d5429=1557834105"
-        ,"User-Agent":"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 UBrowser/6.2.4098.3 Safari/537.36"
+        "User-Agent":"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 UBrowser/6.2.4098.3 Safari/537.36"
        }
     # ua池，随机取防止被查
     ua = (
@@ -73,19 +69,19 @@ class WangyiHouse(threading.Thread):
 
         self.threadLock = threading.Lock()
         # 初始化数据库连接
-        try:
-            db_host = self.config.get("db", "host")
-            db_port = int(self.config.get("db", "port"))
-            db_user = self.config.get("db", "user")
-            db_pass = self.config.get("db", "password")
-            db_db = self.config.get("db", "db")
-            db_charset = self.config.get("db", "charset")
-            self.db = pymysql.connect(host=db_host, port=db_port, user=db_user, passwd=db_pass, db=db_db,
-                                      charset=db_charset)
-            self.db_cursor = self.db.cursor()
-        except Exception as err:
-            print("请检查数据库配置")
-            sys.exit()
+        # try:
+        #     db_host = self.config.get("db", "host")
+        #     db_port = int(self.config.get("db", "port"))
+        #     db_user = self.config.get("db", "user")
+        #     db_pass = self.config.get("db", "password")
+        #     db_db = self.config.get("db", "db")
+        #     db_charset = self.config.get("db", "charset")
+        #     self.db = pymysql.connect(host=db_host, port=db_port, user=db_user, passwd=db_pass, db=db_db,
+        #                               charset=db_charset)
+        #     self.db_cursor = self.db.cursor()
+        # except Exception as err:
+        #     print("请检查数据库配置")
+        #     sys.exit()
 
         # 初始化redis连接
         try:
@@ -102,37 +98,93 @@ class WangyiHouse(threading.Thread):
         self.max_queue_len = int(self.config.get("sys", "max_queue_len"))
         self.sleep_time = float(self.config.get("sys", "sleep_time"))
 
+    def get_loupan_pinglun(self):
+        '''
+        获取楼盘评论
+        :return:
+        '''
+        # 遍历所有队列中所有值
+        while int(self.redis_con.llen("user_queue")) != 0:
+            name_url = str(self.redis_con.rpop("loupan_pinjia_url_queue").decode('utf-8'))
+            print("正在处理:" + name_url)
+            # 处理新闻页面信息
+            try:
+                resp = requests.session().get(name_url,headers=self.headers,timeout=5)
+                BS = BeautifulSoup(resp.text, "html.parser")
+                lis = BS.find_all('div',class_='cr-con')
+                if len(lis) > 1:
+                    print("a")
+                for li in lis:
+                    text = li.text
+            except Exception as e:
+                print("异常的url:" + name_url)
+            # 设置user-agent
+            self.set_random_ua()
+            # 减缓爬虫速度
+            time.sleep(self.sleep_time)
+
     def index_data(self):
         '''
-        获取首页
+        获取首页基础
         :return:
         '''
         # 获取到响应数据处理获取url到redis队列
-        resp = requests.session().get(url=self.index_url, headers=self.headers)
-        # 分析首页数据
-        self.url_data(resp.text)
+        # 每次请求10条请求约269页
+        for i in range(1, 270):
+            # 初始化后的url
+            url = self.index_url%i
+            # 判断是否已抓取
+            if not self.redis_con.hexists('loupan_already_get_index_url', url):
+                self.redis_con.hset('loupan_already_get_index_url', url, 1)
+                print("添加链接 " + url + "到队列")
+                try:
+                    resp = requests.session().get(url=url, headers=self.headers,timeout=5)
+                    if not resp:
+                        print("未获取到首页数据，请检查网络或接口地址")
+                        break
+                    # 基础信息list，地址 -> lpts -> rzsj -> yd
+                    json_obj = json.loads(resp.text)
+                    datas = jsonpath.jsonpath(json_obj, "$.dataList")
+                    for data in datas:
+                        # 分析首页数据
+                        self.ex_data(data)
+                    time.sleep(0.5)
+                except Exception as e:
+                    print("连接超时 url:" + url)
+                    continue
 
-    def url_data(self,json_data):
+    def ex_data(self,json_data):
         '''
-        分析获取数据
+        分析首页获取数据 获取评论数据
         :return:
         '''
-        if not json_data:
-            print("未获取到首页数据，请检查网络或接口地址")
-            return
-        # 基础信息list，地址 -> lpts -> rzsj -> yd
-        json_obj = json.loads(json_data)
-        data = jsonpath.jsonpath(json_obj,"$.dataList[*].baseinfo.base_dz")
-        print(data)
-    # 加入待抓取用户队列，先用redis判断是否已被抓取过
-    def add_wait_user(self, name_url):
-        # 判断是否已抓取
-        if not self.redis_con.hexists('already_get_index_url', name_url):
-            self.counter += 1
-            print(name_url + " 加入队列")
-            self.redis_con.hset('already_get_index_url', name_url, 1)
-            self.redis_con.lpush('user_queue', name_url)
-            print("添加用户 " + name_url + "到队列")
+        # 基础信息list，buystatus 购买状态 -> district 地区 -> name名称 -> price价格  -> productid评论id -> property房产类型
+        # 详情信息 , base_dz 地址 -> base_ebusiness_begindate 开盘时间  -> base_ebusiness_date 交房时间
+        # json格式保存首页数据
+        for data in json_data:
+            text = ""
+
+            # 楼盘评价url
+            pingjia_url = self.discuss_url_temp%data['productid']
+            # 保存楼盘评价数据
+            # 判断是否已抓取
+            if not self.redis_con.hexists('loupan_pinjia_already', pingjia_url):
+                self.redis_con.hset('loupan_pinjia_already', pingjia_url, 1)
+                print("添加链接 " + pingjia_url + "到队列")
+                # 处理新闻页面信息
+                try:
+                    resp = requests.session().get(pingjia_url,timeout=5,headers=self.headers)
+                    BS = BeautifulSoup(resp.text, "html.parser")
+                    context_pingluns = BS.find_all('div', class_='cr-con')
+                    for li in context_pingluns:
+                        text = text + li.text
+                except Exception as e:
+                    print("异常的url:" + pingjia_url)
+                # 设置user-agent
+                self.set_random_ua()
+            data = dict(data)
+            data['pinglun'] = text
+            self.redis_con.lpush("loupan_data", str(data))
 
     # 获取页面出错移出redis
     def del_already_user(self, name_url):
@@ -151,42 +203,6 @@ class WangyiHouse(threading.Thread):
         length = len(self.ua)
         rand = random.randint(0, length - 1)
         self.headers['User-Agent'] = self.ua[rand]
-
-    def get_new_data(self,url):
-        '''
-        获取新闻页信息
-        :return:
-        '''
-        resp = requests.session().get(url,headers=self.headers)
-        BS = BeautifulSoup(resp.text, "html.parser")
-        # 获取所有P标签内的内容
-        P = BS.find_all("p")
-
-        context = ""
-        for p in P:
-            context += p.text
-        # 获取标题
-        title = BS.find("title").text
-        # 获取时间
-        pub_time = BS.find("span", class_="a_time")
-        # 若pub_time为空则按新版数据格式匹配
-        if not pub_time:
-            pub_time = BS.find("span", class_="article-time")
-        # 若pub_time为空则更新版数据格式匹配
-        if not pub_time:
-            pub_time = BS.find("span", class_="pubTime")
-        pub_time = pub_time.text
-        # 正则获取页面js中的cmt参数值
-        cmt_id = re.findall("cmt_id = (.+?);", resp.text)
-        if cmt_id:
-            cmt_id = cmt_id[0]
-        # 获取评论数
-        discuss_num = int(self.get_discuss_number(cmt_id)) if cmt_id else 0
-        # 获取评论以及回复内容 (评论内容腾讯设置一次请求最多拿30条，鉴于代码复杂度，每条新闻最多取30条评论)
-        discuss_re = self.get_discuss(cmt_id) if cmt_id else ""
-        my_uuid = str(uuid.uuid4())
-        # 保存数据
-        self.save_data(my_uuid,cmt_id,title,pub_time,discuss_num, context,discuss_re)
 
     def save_data(self, uuid,cmt_id, title, pub_time, discuss_num, new_context,discuss_redis):
         '''
@@ -230,53 +246,18 @@ class WangyiHouse(threading.Thread):
         except Exception as e:
             print(e)
 
-    def get_discuss_number(self, cmt_id):
-        '''
-        获取评论数
-        :return:
-        '''
-        resp = requests.session().get(self.discuss_num_url_temp%cmt_id,headers=self.headers)
-        json_data = json.loads(resp.text)
-        return jsonpath.jsonpath(json_data,"$.data.commentnum")[0]
-
     def get_discuss(self, cmt_id):
         '''
-        获取评论以及恢复
+        获取评论以及回复
         :return: json key is pinglun or huifu
         '''
-        resp = requests.session().get(self.discuss_url_temp % cmt_id, headers=self.headers)
+        resp = requests.session().get(self.discuss_url_temp % cmt_id, headers=self.headers,timeout=5)
         # resp = requests.session().get(self.discuss_url_temp % "2300201266", headers=self.headers)
         json_data = json.loads(resp.text)
         return {"pinlun": jsonpath.jsonpath(json_data,"$.data.oriCommList")[0], "huifu": jsonpath.jsonpath(json_data, "$.data.repCommList.*.*")}
 
-    def manage(self):
-        '''
-        方法入口
-        :return:
-        '''
-        self.index_data()
-        # # 判断是否取过首页信息
-        # if not int(self.redis_con.hlen("already_get_index_url")) > 2000:
-        #     self.index_data()
-        # # 出队列获取用户name_url redis取出的是byte，要decode成utf-8
-        # # name_url = str(self.redis_con.rpop("user_queue").decode('utf-8'))
-        # # 遍历所有队列中所有值
-        # while int(self.redis_con.llen("user_queue"))!=0:
-        #     name_url = str(self.redis_con.rpop("user_queue").decode('utf-8'))
-        #     print("正在处理:" + name_url)
-        #     # 处理新闻页面信息
-        #     try:
-        #         self.get_new_data(name_url)
-        #     except Exception as e:
-        #         print("异常的url:"+name_url)
-        #     # 设置user-agent
-        #     self.set_random_ua()
-        #     # 减缓爬虫速度
-        #     time.sleep(self.sleep_time)
-
     def run(self):
-        print(self.name + " is running")
-        self.manage()
+        self.index_data()
 
 if __name__ == '__main__':
     '''

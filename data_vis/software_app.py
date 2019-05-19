@@ -45,7 +45,7 @@ class softApp(threading.Thread):
         if not (int(self.txh_obj.redis_con.llen("loupan_data")) > 1 and int(self.txh_obj.redis_con.llen("tengxun_news")) > 1):
             b = tk.Button(self.window, text='开始获取', font=('Arial', 12), width=20, height=1, command=self.begin_get)
         else:
-            b = tk.Button(self.window, text='已有数据,重新获取', font=('Arial', 12), width=20, height=1, command=self.begin_get)
+            b = tk.Button(self.window, text='已有数据,重新获取', font=('Arial', 12), width=20, height=1, command=self.re_get)
         b2 = tk.Button(self.window, text='查看信息', font=('Arial', 12), width=20, height=1, command=self.news_table_show)
         b.pack()
         b2.pack()

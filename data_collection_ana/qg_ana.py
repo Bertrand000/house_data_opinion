@@ -6,7 +6,7 @@ import numpy as np
  @File  : software_app.py
  @Author: Li
  @Date  : 2019/5/20
- @Desc  : GUI
+ @Desc  : 情感分析
 '''
 # 打开词典文件，返回列表
 def open_dict(Dict='hahah',path = './'):

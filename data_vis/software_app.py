@@ -2,15 +2,18 @@
 
 import tkinter as tk
 import tkinter.messagebox
+import redis
 import time
-import threading
 import configparser
 import json
-from  tkinter import ttk
+import sys
+import threading
+from tkinter import ttk
+from tkinter import *
 
 from sprider import tengxun_house as txh
 from sprider import wangyi_house as wyh
-from data_collection_ana import qg_ana
+# from data_collection_ana import qg_ana
 
 # 获取配置
 cfg = configparser.ConfigParser()
@@ -29,11 +32,21 @@ class softApp(threading.Thread):
     x = None
     txh_obj = None
     wyh_obj = None
-    def __init__(self,window ):
-        self.txh_obj = txh.TengxunHouse()
-        self.wyh_obj = wyh.WangyiHouse()
+    redis_con = None
+    sleep_time = None
+    def __init__(self,window):
+        try:
+            redis_host = cfg.get("redis", "host")
+            redis_port = cfg.get("redis", "port")
+            self.redis_con = redis.Redis(host=redis_host, port=redis_port, db=0)
+            # 刷新redis库
+            # self.redis_con.flushdb()
+        except Exception as err:
+            print("请安装redis或检查redis连接配置")
+            sys.exit()
+        self.txh_obj = txh.TengxunHouse(self.redis_con)
+        self.wyh_obj = wyh.WangyiHouse(self.redis_con)
         self.window = window
-        threading.Thread.__init__(self)
         self.main()
     def main(self):
         '''
@@ -42,10 +55,11 @@ class softApp(threading.Thread):
         '''
         label = tk.Label(self.window,text='获取腾讯房产与网易房产数据', font=('Arial', 12), width=30, height=2)
         label.pack()
-        if not (int(self.txh_obj.redis_con.llen("loupan_data")) > 1 and int(self.txh_obj.redis_con.llen("tengxun_news")) > 1):
-            b = tk.Button(self.window, text='开始获取', font=('Arial', 12), width=20, height=1, command=self.begin_get)
-        else:
-            b = tk.Button(self.window, text='已有数据,重新获取', font=('Arial', 12), width=20, height=1, command=self.re_get)
+        # if not (int(self.txh_obj.redis_con.llen("loupan_data")) > 1 or int(self.txh_obj.redis_con.llen("tengxun_news")) > 1):
+        #     b = tk.Button(self.window, text='开始获取', font=('Arial', 12), width=20, height=1, command=self.begin_get)
+        # else:
+        #     b = tk.Button(self.window, text='重新获取', font=('Arial', 12), width=20, height=1, command=self.re_get)
+        b = tk.Button(self.window, text='爬虫管理', font=('Arial', 12), width=20, height=1, command=self.get_data_via)
         b2 = tk.Button(self.window, text='查看信息', font=('Arial', 12), width=20, height=1, command=self.news_table_show)
         b.pack()
         b2.pack()
@@ -53,7 +67,6 @@ class softApp(threading.Thread):
 
 
         self.ex_page()
-
     def dui_hua(self,kuang_name):
         '''
         对话框
@@ -164,12 +177,46 @@ class softApp(threading.Thread):
         tree.pack()
 
         self.ex_page()
+
+    def get_data_via(self):
+        '''
+        获取数据页面
+        :return:
+        '''
+        spri_manage = tk.Tk()
+        b1 = None
+        page_name = "爬虫管理"
+        label = tk.Label(spri_manage, text='点击按钮运行爬虫')
+        b1 = tk.Button(spri_manage, text='开始', font=('Arial', 12), width=20, height=1)
+        if self.redis_con.llen('loupan_data') > 0 or self.redis_con.llen('tengxun_news') > 0:
+            b1 = tk.Button(spri_manage, text='重新获取', font=('Arial', 12), width=20, height=1)
+        b1.config(command=lambda: self.begin_get(b1, label))
+        label.pack()
+        b1.pack()
+        screenwidth = spri_manage.winfo_screenwidth()
+        screenheight = spri_manage.winfo_screenheight()
+        size = '%dx%d+%d+%d' % (500, 300, (screenwidth - 500) / 2, (screenheight - 300) / 2)
+        spri_manage.geometry(size)
+        spri_manage.title(page_name)
+        spri_manage.mainloop()
+
     def re_get(self):
         '''
         重新获取
         :return:
         '''
-        res_status = self.dui_hua("缓存中已有数据，重新获取会删除原数据，确认重新获取吗?")
+
+
+    def begin_get(self, b1, label):
+        '''
+        开始获取数据
+        :return:
+        '''
+        b1.config(state=tk.DISABLED)
+        # label = Enter(self.window, text = "")
+        res_status = True
+        if self.redis_con.llen('loupan_data') > 0 or self.redis_con.llen('tengxun_news') > 0:
+            res_status = self.dui_hua("缓存中已有数据，重新获取会删除原数据，确认重新获取吗?")
         if res_status:
             self.txh_obj.redis_con.delete("already_get_index_url")
             self.txh_obj.redis_con.delete("loupan_already_get_index_url")
@@ -177,32 +224,18 @@ class softApp(threading.Thread):
             self.txh_obj.redis_con.delete("loupan_pinjia_already")
             self.txh_obj.redis_con.delete("tengxun_news")
             self.txh_obj.redis_con.delete("user_queue")
-            self.begin_get()
 
-    def begin_get(self):
-        '''
-        开始获取数据
-        :return:
-        '''
-        self.exit()
-        label = tk.Label(self.window, text='初次启动自动爬取数据，可能需要较长时间，数据加载完成会自动切换页面...', font=('Arial', 9), width=80, height=20)
-        label.pack()
-        self.new_name = "爬取数据"
-        self.ex_page()
-        # 启动爬虫
-        threads = []
-        threads_num = int(cfg.get("sys", "thread_num"))
-        for i in range(0, threads_num):
-            m = txh.TengxunHouse(i, "thread" + str(i))
-            s = wyh.WangyiHouse(i, "thread" + str(i))
-            threads.append(m)
-            threads.append(s)
-        for i in threads:
-            i.start()
-        for i in threads:
-            i.join()
+        # # 启动爬虫
+        thread1 = threading.Thread(target=self.run_spr)
+        thread1.setDaemon(True)  # 线程守护，即主进程结束后，此线程也结束。否则主进程结束子进程不结束
+        thread1.start()
+        tkinter.messagebox.showinfo(title="来自爬虫的消息",message="爬虫已于后台启动，在爬虫完成提示框出现之前请勿关闭主界面")
         self.news_table_show()
-
+    def run_spr(self):
+        # 启动爬虫
+        self.wyh_obj.index_data()
+        self.txh_obj.manage()
+        tkinter.messagebox.showinfo(title="来自爬虫的消息",message="数据加载完成，爬虫退出工作")
 
         # ------------------------------------------------------------------------------------------------------
         #                             进度条 sum_nub:总数据条数  new_nub:当前数据条数

@@ -23,13 +23,11 @@ cfg.read("./config.ini")
  @Date  : 2019/5/14
  @Desc  : 房产
 '''
-class TengxunHouse(threading.Thread):
+class TengxunHouse():
     pool = None
     config = None
-    # redis带抓取用户队列最大长度
-    max_queue_len = 1000
     # 默认等待时间
-    sleep_time = 1
+    sleep_time = 0.3
     header_url = "https://cd.house.qq.com"
     # 评论数接口模板
     discuss_num_url_temp = "https://coral.qq.com/article/%s/commentnum"
@@ -65,26 +63,12 @@ class TengxunHouse(threading.Thread):
     # 被抓取新闻计数
     counter = 0
 
-    def __init__(self,threadID=1, name=''):
+    def __init__(self,redis_con):
         '''
 
         :param threadID: 线程id
         :param name: 线程名
         '''
-        # 初始化redis连接
-        # 多线程
-        print("线程" + str(threadID) + "初始化")
-        threading.Thread.__init__(self)
-        self.threadID = threadID
-        self.name = name
-        self.config = cfg
-        try:
-            print("线程" + str(threadID) + "初始化成功")
-        except Exception as err:
-            print(err)
-            print("线程" + str(threadID) + "开启失败")
-
-        self.threadLock = threading.Lock()
         # 初始化数据库连接
         # try:
         #     db_host = self.config.get("db", "host")
@@ -102,19 +86,8 @@ class TengxunHouse(threading.Thread):
         #     sys.exit()
 
         # 初始化redis连接
-        try:
-            redis_host = cfg.get("redis", "host")
-            redis_port = cfg.get("redis", "port")
-            self.redis_con = redis.Redis(host=redis_host, port=redis_port, db=0)
-            # 刷新redis库
-            # self.redis_con.flushdb()
-        except Exception as err:
-            print("请安装redis或检查redis连接配置")
-            sys.exit()
+        self.redis_con = redis_con
 
-        # 初始化系统设置
-        self.max_queue_len = int(self.config.get("sys", "max_queue_len"))
-        self.sleep_time = float(self.config.get("sys", "sleep_time"))
 
     def index_data(self):
         '''

@@ -16,8 +16,7 @@ import uuid
 from bs4 import BeautifulSoup
 
 # 获取配置
-cfg = configparser.ConfigParser()
-cfg.read("./config.ini")
+
 '''
 
 @author: Mr.Chen
@@ -25,7 +24,7 @@ cfg.read("./config.ini")
 @time: 2019/5/17 9:49
 
 '''
-class WangyiHouse(threading.Thread):
+class WangyiHouse():
     pool = None
     config = None
     # 默认等待时间
@@ -48,26 +47,13 @@ class WangyiHouse(threading.Thread):
     # 被抓取楼盘数计数
     counter = 0
 
-    def __init__(self,threadID=1, name=''):
+    def __init__(self,redis_con):
         '''
 
         :param threadID: 线程id
         :param name: 线程名
         '''
         # 初始化redis连接
-        # 多线程
-        print("线程" + str(threadID) + "初始化")
-        threading.Thread.__init__(self)
-        self.threadID = threadID
-        self.name = name
-        self.config = cfg
-        try:
-            print("线程" + str(threadID) + "初始化成功")
-        except Exception as err:
-            print(err)
-            print("线程" + str(threadID) + "开启失败")
-
-        self.threadLock = threading.Lock()
         # 初始化数据库连接
         # try:
         #     db_host = self.config.get("db", "host")
@@ -84,19 +70,8 @@ class WangyiHouse(threading.Thread):
         #     sys.exit()
 
         # 初始化redis连接
-        try:
-            redis_host = cfg.get("redis", "host")
-            redis_port = cfg.get("redis", "port")
-            self.redis_con = redis.Redis(host=redis_host, port=redis_port, db=0)
-            # 刷新redis库
-            # self.redis_con.flushdb()
-        except Exception as err:
-            print("请安装redis或检查redis连接配置")
-            sys.exit()
+        self.redis_con = redis_con
 
-        # 初始化系统设置
-        self.max_queue_len = int(self.config.get("sys", "max_queue_len"))
-        self.sleep_time = float(self.config.get("sys", "sleep_time"))
 
     def get_loupan_pinglun(self):
         '''

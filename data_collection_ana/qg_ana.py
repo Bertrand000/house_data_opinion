@@ -4,7 +4,7 @@ import os
 import numpy as np
 
 '''
- @File  : software_app.py
+ @File  : app.py
  @Author: Li
  @Date  : 2019/5/20
  @Desc  : 情感分析

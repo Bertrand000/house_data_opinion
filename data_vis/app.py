@@ -23,12 +23,12 @@ cfg = configparser.ConfigParser()
 cfg.read("./config.ini")
 
 '''
- @File  : software_app.py
+ @File  : app.py
  @Author: Li
  @Date  : 2019/5/20
  @Desc  : GUI
 '''
-class softApp(threading.Thread):
+class app(threading.Thread):
     window = None
     new_name = None
     n = None
@@ -64,7 +64,7 @@ class softApp(threading.Thread):
         # else:
         #     b = tk.Button(self.window, text='重新获取', font=('Arial', 12), width=20, height=1, command=self.re_get)
         b = tk.Button(self.window, text='爬虫管理', font=('Arial', 12), width=20, height=1, command=self.get_data_via)
-        b2 = tk.Button(self.window, text='Next', font=('Arial', 12), width=20, height=1, command=self.news_table_show)
+        b2 = tk.Button(self.window, text='新闻-评价-话题', font=('Arial', 12), width=20, height=1, command=self.news_table_show)
         b.pack()
         b2.pack()
         self.new_name = "主界面"
@@ -109,25 +109,38 @@ class softApp(threading.Thread):
                 print(err)
 
         # table
-        title = ['1', '2', '3', '4', '5', '6','7']
+        title = ['1', '2', '3']
         tree = ttk.Treeview(self.window, columns=title, show='headings')  # 表格
+
+        xscroll = Scrollbar(self.window, orient=HORIZONTAL, command=tree.xview)
+        tree.configure(xscrollcommand=xscroll.set)
+        xscroll.pack(side=BOTTOM, fill=X)
+        yscrollbar = Scrollbar(self.window, orient=VERTICAL, command=tree.yview)
+        tree.configure(yscrollcommand=yscrollbar.set)
+        yscrollbar.pack(side=RIGHT, fill=Y)
+
         tree.column("1")
         tree.column("2")
         tree.column("3")
-
-
-        tree.heading("1", text="整体评论情感倾向")
+        tree.heading("1", text="评论以及回复整体情感倾向")
         tree.heading("2", text="评论内容")
         tree.heading("3", text="回复内容")
-        context = ""
+        # context = ""
         for index, i in enumerate(reallyresult):
             try:
-                # 该条新闻有评论内容
+                # 该条新闻所有有评论内容
                 if i['discuss_num'] and i['discuss_num'] != "0":
                     context = "".join(i['discuss']) + ',' + "".join(i['huifu'])
                     qg_value = hv.HmmV().baum_welch_train(context)
-                    tree.insert("", 'end', values=(
-                    qg_value,i['discuss'], i['huifu']))  # 插入数据
+                    if qg_value>0:
+                        tree.insert("", 'end', values=(
+                        "倾向好评，倾向值："+str(qg_value),i['discuss'], i['huifu']))  # 插入数据
+                    elif qg_value<0:
+                        tree.insert("", 'end', values=(
+                        "倾向差评，倾向值："+str(qg_value),i['discuss'], i['huifu']))  # 插入数据
+                    else:
+                        tree.insert("", 'end', values=(
+                            "未找到态度倾向" , i['discuss'], i['huifu']))  # 插入数据
             except Exception as e:
                 print(e)
         tree.pack()
@@ -169,6 +182,12 @@ class softApp(threading.Thread):
         # table
         title=['1','2','3','4','5','6']
         tree = ttk.Treeview(self.window,columns=title,show='headings')  # 表格
+        xscroll = Scrollbar(self.window, orient=HORIZONTAL, command=tree.xview)
+        tree.configure(xscrollcommand=xscroll.set)
+        xscroll.pack(side=BOTTOM, fill=X)
+        yscrollbar = Scrollbar(self.window, orient=VERTICAL, command=tree.yview)
+        tree.configure(yscrollcommand=yscrollbar.set)
+        yscrollbar.pack(side=RIGHT, fill=Y)
         tree.column("1", width=100)
         tree.column("2", width=100)
         tree.column("3", width=100)
@@ -185,7 +204,6 @@ class softApp(threading.Thread):
 
         for index,i in enumerate(reallyresult):
             try:
-
                 tree.insert("",'end', values=(i['title'], i['pub_time'], i['discuss_num'] ,i['discuss'], i['huifu'],i['context']))  # 插入数据，
             except Exception as e:
                 print(e)
@@ -250,6 +268,12 @@ class softApp(threading.Thread):
         # table
         title = ['1', '2']
         tree = ttk.Treeview(self.window, columns=title, show='headings')  # 表格
+        xscroll = Scrollbar(self.window, orient=HORIZONTAL, command=tree.xview)
+        tree.configure(xscrollcommand=xscroll.set)
+        xscroll.pack(side=BOTTOM, fill=X)
+        yscrollbar = Scrollbar(self.window, orient=VERTICAL, command=tree.yview)
+        tree.configure(yscrollcommand=yscrollbar.set)
+        yscrollbar.pack(side=RIGHT, fill=Y)
         tree.column("1", width=100)
         tree.column("2", width=100)
 
@@ -281,6 +305,12 @@ class softApp(threading.Thread):
         # table
         title = ['1', '2']
         tree = ttk.Treeview(self.window, columns=title, show='headings')  # 表格
+        xscroll = Scrollbar(self.window, orient=HORIZONTAL, command=tree.xview)
+        tree.configure(xscrollcommand=xscroll.set)
+        xscroll.pack(side=BOTTOM, fill=X)
+        yscrollbar = Scrollbar(self.window, orient=VERTICAL, command=tree.yview)
+        tree.configure(yscrollcommand=yscrollbar.set)
+        yscrollbar.pack(side=RIGHT, fill=Y)
         tree.column("1", width=100)
         tree.column("2", width=100)
 
@@ -474,4 +504,4 @@ class softApp(threading.Thread):
 
 
 if __name__ == '__main__':
-    app = softApp(tk.Tk())
+    app = app(tk.Tk())

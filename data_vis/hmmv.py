@@ -78,9 +78,8 @@ class HmmV:
                 qg_res_value = ana.sentiment_score(ana.sentiment_score_list(observations))
                 qg_value = 0.0
                 for value in qg_res_value:
-                    test =  value[0]/(value[0]+value[1])
-                    qg_value = qg_value + value[0]/(value[0]+value[1]) if ((value[0]+value[1])!=0) else 0
-                return '{:.2%}'.format(qg_value/len(qg_res_value))
+                    qg_value = qg_value + value[0] - value[1]
+                return qg_value
             for t in range(n_samples-1):
                 denom = np.dot(np.dot(alpha[:,t].T, self.A) * self.B[:,observations[t+1]].T, beta[:,t+1])
                 for i in range(n_states):

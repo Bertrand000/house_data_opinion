@@ -248,7 +248,23 @@ class softApp(threading.Thread):
         b_kmeans_h.pack()
         b_kmeans_l.pack()
         b_kmeans_m.pack()
+        # table
+        title = ['1', '2']
+        tree = ttk.Treeview(self.window, columns=title, show='headings')  # 表格
+        tree.column("1", width=100)
+        tree.column("2", width=100)
 
+        tree.heading("1", text="话题词")  # 显示表头
+        tree.heading("2", text="词频")
+        for dict_datas in k_data:
+            for datas in dict_datas:
+                for key in datas:
+                    try:
+                        # 插入数据
+                        tree.insert("", 'end', values=(key, datas[key]))
+                    except Exception as e:
+                        print(e)
+        tree.pack()
         b_remain = tk.Button(self.window, text='返回主界面', command=self.ex_main)
         b_remain.pack()
         self.ex_page()

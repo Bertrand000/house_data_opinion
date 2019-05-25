@@ -1,4 +1,46 @@
+# -*- coding: utf-8 -*-
+import jieba
 import numpy as np
+from collections import Counter
+
+'''
+ @File  : kmeans.py
+ @Author: Li
+ @Date  : 2019/5/25
+ @Desc  : 聚类
+'''
+def read_from_file(file_name):
+    with open(file_name,'r',encoding='utf-8') as fp:
+        words = fp.read()
+    return words
+
+def del_stop_word(data_str):
+    '''
+
+    :param data_str:
+    :return:
+    '''
+    res = jieba.lcut(data_str)
+    new_word = []
+    read_file = read_from_file("Kmeans_聚类切词_停用词.txt").split("\n")
+    for r in res:
+        if r not in read_file:
+            new_word.append(r)
+    return new_word
+def get_all_vector(data_str):
+    # 去停用词
+    # word_set = set()
+    doc = del_stop_word(data_str)
+    # word_set |= set(doc)
+    # word_set = list(word_set)
+    # docs_vsm = []
+    # tem_vector=[]
+    # for word in word_set:
+    #     tem_vector.append(int(doc.count(word)))
+    # docs_vsm.append(tem_vector)
+    # 词频统计
+    count_map = Counter(doc)
+    return count_map
 
 def func02(kjz1,k):    #k个均值分k份
 
@@ -57,11 +99,22 @@ def means(lb1):    #计算均值
         mean2.append(np.mean([mean1[j-1],mean1[j]])) #分组均值使用各组的均值
     print(mean2)
     return mean2
+def format_str(content):
+    content_str = ''
+    for i in content:
+        if is_chinese(i):
+            content_str = content_str + i
+    return content_str
 
-if __name__=='__main__':
-
-
-    kjz1={"特朗普":0,"新房":0,"拆迁":0,"流量":1,"万科":89,"房屋出租":101}   #生成随机数列表
+def is_chinese(uchar):
+    """判断一个unicode是否是汉字"""
+    if uchar >= u'\u4e00' and uchar <= u'\u9fa5':
+        return True
+    else:
+        return False
+def run(data_str):
+    # chinese_word = format_str(data_str)
+    kjz1 = get_all_vector(data_str)
     keys = list(kjz1.keys())
     values = list(kjz1.values())
     # 默认k=3
@@ -72,4 +125,5 @@ if __name__=='__main__':
             local_index = values.index(i)
             values.pop(local_index)
             kjz3[index][indexv] = {keys.pop(local_index):i}
-    print(kjz3)
+    return kjz3
+

@@ -8,9 +8,13 @@ import configparser
 import json
 import sys
 import threading
+import matplotlib.pyplot as plt
+from matplotlib.font_manager import FontProperties
+from wordcloud import WordCloud
 from tkinter import ttk
 from tkinter import *
 
+import data_vis.kmeans as m_kmeans
 from sprider import tengxun_house as txh
 from sprider import wangyi_house as wyh
 # from data_collection_ana import qg_ana
@@ -53,6 +57,7 @@ class softApp(threading.Thread):
         主界面
         :return:
         '''
+        self.exit()
         label = tk.Label(self.window,text='获取腾讯房产与网易房产数据', font=('Arial', 12), width=30, height=2)
         label.pack()
         # if not (int(self.txh_obj.redis_con.llen("loupan_data")) > 1 or int(self.txh_obj.redis_con.llen("tengxun_news")) > 1):
@@ -64,9 +69,14 @@ class softApp(threading.Thread):
         b.pack()
         b2.pack()
         self.new_name = "主界面"
-
-
         self.ex_page()
+    def ex_main(self):
+        '''
+        返回主界面
+        :return:
+        '''
+        self.main()
+
     def dui_hua(self,kuang_name):
         '''
         对话框
@@ -79,6 +89,7 @@ class softApp(threading.Thread):
         :return:
         '''
         self.exit()
+
         label = tk.Label(self.window, text='情感分析信息列表(情感倾向分值越高,该条新闻越能被接受)', font=('Arial', 9), width=80, height=2)
         label.pack()
 
@@ -116,16 +127,17 @@ class softApp(threading.Thread):
         tree.heading("5", text="评论")
         tree.heading("6", text="评论回复")
         tree.heading("7", text="新闻内容")
-        for index, i in enumerate(reallyresult):
-            qg_value = 0
-            if i['discuss_num'] or "0":
-                qg_res_value = qg_ana.sentiment_score(qg_ana.sentiment_score_list("".join(i['discuss']) + ',' + "".join(i['huifu'])))
-                for value in qg_res_value:
-                    qg_value = qg_value + value[0] - value[1]
-            tree.insert("", 'end', values=(
-            qg_value, i['title'], i['pub_time'], i['discuss_num'], i['discuss'], i['huifu'], i['context']))  # 插入数据，
+        # for index, i in enumerate(reallyresult):
+        #     qg_value = 0
+        #     if i['discuss_num'] or "0":
+        #         qg_res_value = qg_ana.sentiment_score(qg_ana.sentiment_score_list("".join(i['discuss']) + ',' + "".join(i['huifu'])))
+        #         for value in qg_res_value:
+        #             qg_value = qg_value + value[0] - value[1]
+        #     tree.insert("", 'end', values=(
+        #     qg_value, i['title'], i['pub_time'], i['discuss_num'], i['discuss'], i['huifu'], i['context']))  # 插入数据，
         tree.pack()
-
+        b = tk.Button(self.window, text='返回主界面', command=self.ex_main)
+        b.pack()
         self.ex_page()
 
     def news_table_show(self):
@@ -134,13 +146,16 @@ class softApp(threading.Thread):
         :return:
         '''
         # 销魂原界面
+
         self.exit()
+
         # 切换界面
         self.new_name = "信息列表"
         label = tk.Label(self.window, text='信息列表', font=('Arial', 12), width=30, height=2)
         label.pack()
         b = tk.Button(self.window, text='评论情感分析', font=('Arial', 12), width=20, height=1, command=self.qg_table_show)
         b.pack()
+
         # 获取数据
         result = self.txh_obj.redis_con.lrange("tengxun_news",0,-1)
         # 定义一个空列表存储取出的元素
@@ -172,12 +187,150 @@ class softApp(threading.Thread):
         tree.heading("4", text="评论")
         tree.heading("5", text="评论回复")
         tree.heading("6", text="新闻内容")
+
         for index,i in enumerate(reallyresult):
-            tree.insert("",'end', values=(i['title'], i['pub_time'], i['discuss_num'] ,i['discuss'], i['huifu'],i['context']))  # 插入数据，
+            try:
+
+                tree.insert("",'end', values=(i['title'], i['pub_time'], i['discuss_num'] ,i['discuss'], i['huifu'],i['context']))  # 插入数据，
+            except Exception as e:
+                print(e)
+        tree.pack()
+        b_redian = tk.Button(self.window, text='热点话题', font=('Arial', 12), width=20, height=1,
+                             command=lambda: self.redian_words(reallyresult))
+        b_redian.pack()
+        b = tk.Button(self.window, text='返回主界面', command=self.ex_main)
+        b.pack()
+        self.ex_page()
+    def redian_words(self,data):
+        '''
+        热点话题
+        :return:
+        '''
+        # 退出界面
+        self.exit()
+        self.new_name = "热点话题管理"
+
+        redian_context = ""
+        for i in data:
+            try:
+                redian_context = redian_context + i["title"]
+            except Exception as e:
+                print(e)
+        data_dict = m_kmeans.run(redian_context)
+        # 词云
+        b_wordclound = tk.Button(self.window, text='热点话题词云', font=('Arial', 12), width=20, height=1,
+                             command=lambda: self.word_clound(redian_context))
+        b_kmeans = tk.Button(self.window, text='开始聚类', font=('Arial', 12), width=20, height=1,
+                             command=lambda: self.redian_kmeans_via(data_dict))
+        b_wordclound.pack()
+        b_kmeans.pack()
+        b_remain = tk.Button(self.window, text='返回主界面', command=self.ex_main)
+        b_remain.pack()
+        self.ex_page()
+    def redian_kmeans_via(self,k_data):
+        '''
+        热点话题聚类展示
+        :return:
+        '''
+        # 退出界面
+        self.exit()
+        self.new_name = "热点话题聚类界面"
+
+        # 高热度
+        b_kmeans_h = tk.Button(self.window, text='高热度话题', font=('Arial', 12), width=20, height=1,
+                             command=lambda: self.huati_handle(k_data[2],"高热度话题"))
+        # 低热度
+        b_kmeans_l = tk.Button(self.window, text='中等热度话题', font=('Arial', 12), width=20, height=1,
+                               command=lambda: self.huati_handle(k_data[1],"中等热度话题"))
+        # 中等热度
+        b_kmeans_m = tk.Button(self.window, text='冷门话题', font=('Arial', 12), width=20, height=1,
+                               command=lambda: self.huati_handle(k_data[0],"冷门话题"))
+        b_kmeans_h.pack()
+        b_kmeans_l.pack()
+        b_kmeans_m.pack()
+
+        b_remain = tk.Button(self.window, text='返回主界面', command=self.ex_main)
+        b_remain.pack()
+        self.ex_page()
+    def huati_handle(self,dict_datas,title_name):
+        '''
+        话题热度处理
+        :param list_data:
+        :return:
+        '''
+        self.exit()
+        self.new_name = title_name
+        # table
+        # table
+
+        # table
+        title = ['1', '2']
+        tree = ttk.Treeview(self.window, columns=title, show='headings')  # 表格
+        tree.column("1", width=100)
+        tree.column("2", width=100)
+
+        tree.heading("1", text="话题词")  # 显示表头
+        tree.heading("2", text="词频")
+        for dict_data in dict_datas:
+            for key in dict_data:
+                try:
+                    # 插入数据
+                    tree.insert("", 'end', values=(key, dict_data[key]))
+                except Exception as e:
+                    print(e)
         tree.pack()
 
-        self.ex_page()
+        # 词云展示
+        context = ""
+        # 聚类统计图
+        b_cloud = tk.Button(self.window, text='排名前10话题柱状图统计', font=('Arial', 12), width=20, height=1,
+                            command=lambda: self.xy_img(dict_datas))
+        b_cloud.pack()
 
+        b_remain = tk.Button(self.window, text='返回主界面', command=self.ex_main)
+        b_remain.pack()
+
+        self.ex_page()
+    def xy_img(self,dict_datas):
+        '''
+        柱状图
+        :param dict_datas:
+        :return:
+        '''
+        font = FontProperties(fname=r"c:\windows\fonts\simsun.ttc", size=14)
+        plt.rcParams['font.sans-serif'] = ['SimHei']
+        rdic_datas = []
+        rdic_datas = rdic_datas + dict_datas
+        rdic_datas.reverse()
+        high = 30
+        name_list = []
+        num_list = []
+        for index,redis_data in enumerate(rdic_datas[0:10]):
+            for key in redis_data:
+                if index==0:
+                    high = redis_data[key]
+                name_list.append(key)
+                num_list.append(redis_data[key])
+        plt.bar(range(len(num_list)), num_list, color='rgby',tick_label=name_list)
+        # X轴标题
+        # index = [0, 20, 40, 60, 80, 100]
+        # index = [c for c in index]
+        # plt.ylim(ymax=high, ymin=0)
+        plt.xlabel("热点词", fontproperties=font)
+        plt.ylabel("词频",fontproperties=font)  # X轴标签
+        # for rect in rects:
+        #     height = rect.get_height()
+        #     plt.text(rect.get_x() + rect.get_width() / 2, height, str(height), ha='center', va='bottom',fontproperties=font)
+        plt.show()
+
+    def word_clound(self,data_str):
+        wordcloud = WordCloud(font_path='C:/Windows/Fonts/simhei.ttf',  # 字体
+                              background_color='white',  # 背景色
+                              max_words=100,  # 最大显示单词数
+                              max_font_size=60,  # 频率最大单词字体大小
+                              ).generate(data_str)
+        image = wordcloud.to_image()
+        image.show()
     def get_data_via(self):
         '''
         获取数据页面
@@ -187,12 +340,15 @@ class softApp(threading.Thread):
         b1 = None
         page_name = "爬虫管理"
         label = tk.Label(spri_manage, text='点击按钮运行爬虫')
+
         b1 = tk.Button(spri_manage, text='开始', font=('Arial', 12), width=20, height=1)
         if self.redis_con.llen('loupan_data') > 0 or self.redis_con.llen('tengxun_news') > 0:
             b1 = tk.Button(spri_manage, text='重新获取', font=('Arial', 12), width=20, height=1)
         b1.config(command=lambda: self.begin_get(b1, label))
         label.pack()
         b1.pack()
+        b_main = tk.Button(spri_manage, text='返回主界面', command=self.ex_main)
+        b_main.pack()
         screenwidth = spri_manage.winfo_screenwidth()
         screenheight = spri_manage.winfo_screenheight()
         size = '%dx%d+%d+%d' % (500, 300, (screenwidth - 500) / 2, (screenheight - 300) / 2)
@@ -230,7 +386,6 @@ class softApp(threading.Thread):
         thread1.setDaemon(True)  # 线程守护，即主进程结束后，此线程也结束。否则主进程结束子进程不结束
         thread1.start()
         tkinter.messagebox.showinfo(title="来自爬虫的消息",message="爬虫已于后台启动，在爬虫完成提示框出现之前请勿关闭主界面")
-        self.news_table_show()
     def run_spr(self):
         # 启动爬虫
         self.wyh_obj.index_data()
@@ -300,6 +455,8 @@ class softApp(threading.Thread):
 
     def run(self):
         self.main()
+
+
 
 if __name__ == '__main__':
     app = softApp(tk.Tk())

@@ -171,7 +171,7 @@ class TengxunHouse():
             context = ""
             for p in P:
                 context += p.text
-            json_data['context'] = str(P)
+            json_data['context'] = self.format_str(str(P))
             # 获取标题
             title = BS.find("title").text
             json_data['title'] = title
@@ -277,6 +277,20 @@ class TengxunHouse():
         content.append(jsonpath.jsonpath(json_data, "$.data.repCommList.*[*].content"))
         return content
 
+    def format_str(self,content):
+        content_str = ''
+        for i in content:
+            if self.is_chinese(i):
+                content_str = content_str + i
+        return content_str
+
+    def is_chinese(self,uchar):
+        """判断一个unicode是否是汉字"""
+        if uchar >= u'\u4e00' and uchar <= u'\u9fa5':
+            return True
+        else:
+            return False
+
     def manage(self):
         '''
         方法入口
@@ -291,6 +305,8 @@ class TengxunHouse():
             print("正在处理:" + name_url)
             # 处理新闻页面信息
             try:
+                # if self.redis_con.llen("tengxun_news")>800:
+                #     break
                 self.get_new_data(name_url)
             except Exception as e:
                 print("异常的url:"+name_url)

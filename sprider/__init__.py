@@ -10,12 +10,12 @@ def read_from_file(file_name):
 def del_stop_word(data_str):
     res = jieba.lcut(data_str)
     new_word = []
+    read_file = read_from_file("Kmeans_聚类切词_停用词.txt").split("\n")
     for r in res:
-        if r not in read_from_file("Kmeans_聚类切词_停用词.txt").split("\n"):
+        if r not in read_file:
             new_word.append(r)
     return new_word
-def get_all_vector():
-    data_str = ["我，我是你爸爸爸爸爸","我儿子，是，是你啊，啊啊，"]
+def get_all_vector(data_str):
     word_set = set()
     docs = []
     for data in data_str:
@@ -27,11 +27,8 @@ def get_all_vector():
     for doc in docs:
         tem_vector=[]
         for word in word_set:
-            tem_vector.append(doc.count(word)*1.0)
+            tem_vector.append(int(doc.count(word)))
         docs_vsm.append(tem_vector)
-    docs_matrix = np.array(docs_vsm)
-    # TODO 列表构建词带空间
-    print(docs_matrix)
-
+    return dict(map(lambda x,y:[x,y],word_set,docs_vsm[0]))
 if __name__ == '__main__':
     get_all_vector()

@@ -342,7 +342,7 @@ class app(threading.Thread):
         :param dict_datas:
         :return:
         '''
-        font = FontProperties(fname=r"c:\windows\fonts\simsun.ttc", size=14)
+        font = FontProperties(fname=r"c:\\windows\\fonts\\simsun.ttc", size=14)
         plt.rcParams['font.sans-serif'] = ['SimHei']
         rdic_datas = []
         rdic_datas = rdic_datas + dict_datas
@@ -369,7 +369,7 @@ class app(threading.Thread):
         plt.show()
 
     def word_clound(self,data_str):
-        wordcloud = WordCloud(font_path='C:/Windows/Fonts/simhei.ttf',  # 字体
+        wordcloud = WordCloud(font_path='C:\\Windows\\Fonts\\simhei.ttf',  # 字体
                               background_color='white',  # 背景色
                               max_words=100,  # 最大显示单词数
                               max_font_size=60,  # 频率最大单词字体大小

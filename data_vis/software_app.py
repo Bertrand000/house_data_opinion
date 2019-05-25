@@ -3,21 +3,20 @@
 import tkinter as tk
 import tkinter.messagebox
 import redis
-import time
 import configparser
 import json
-import sys
 import threading
 import matplotlib.pyplot as plt
 from matplotlib.font_manager import FontProperties
-from wordcloud import WordCloud
+from wordcloud import *
 from tkinter import ttk
 from tkinter import *
 
+from data_vis import hmmv as hv
 import data_vis.kmeans as m_kmeans
 from sprider import tengxun_house as txh
 from sprider import wangyi_house as wyh
-# from data_collection_ana import qg_ana
+from data_collection_ana import qg_ana
 
 # 获取配置
 cfg = configparser.ConfigParser()
@@ -65,7 +64,7 @@ class softApp(threading.Thread):
         # else:
         #     b = tk.Button(self.window, text='重新获取', font=('Arial', 12), width=20, height=1, command=self.re_get)
         b = tk.Button(self.window, text='爬虫管理', font=('Arial', 12), width=20, height=1, command=self.get_data_via)
-        b2 = tk.Button(self.window, text='查看信息', font=('Arial', 12), width=20, height=1, command=self.news_table_show)
+        b2 = tk.Button(self.window, text='Next', font=('Arial', 12), width=20, height=1, command=self.news_table_show)
         b.pack()
         b2.pack()
         self.new_name = "主界面"
@@ -90,7 +89,7 @@ class softApp(threading.Thread):
         '''
         self.exit()
 
-        label = tk.Label(self.window, text='情感分析信息列表(情感倾向分值越高,该条新闻越能被接受)', font=('Arial', 9), width=80, height=2)
+        label = tk.Label(self.window, text='情感分析信息列表', font=('Arial', 9), width=80, height=2)
         label.pack()
 
         # 获取数据
@@ -112,29 +111,25 @@ class softApp(threading.Thread):
         # table
         title = ['1', '2', '3', '4', '5', '6','7']
         tree = ttk.Treeview(self.window, columns=title, show='headings')  # 表格
-        tree.column("1", width=20)
-        tree.column("2", width=100)
-        tree.column("3", width=100)
-        tree.column("4", width=100)
-        tree.column("5", width=100)
-        tree.column("6", width=100)
-        tree.column("7", width=100)
+        tree.column("1")
+        tree.column("2")
+        tree.column("3")
 
-        tree.heading("1", text="情感倾向")
-        tree.heading("2", text="标题")
-        tree.heading("3", text="发布时间")
-        tree.heading("4", text="评论数")
-        tree.heading("5", text="评论")
-        tree.heading("6", text="评论回复")
-        tree.heading("7", text="新闻内容")
-        # for index, i in enumerate(reallyresult):
-        #     qg_value = 0
-        #     if i['discuss_num'] or "0":
-        #         qg_res_value = qg_ana.sentiment_score(qg_ana.sentiment_score_list("".join(i['discuss']) + ',' + "".join(i['huifu'])))
-        #         for value in qg_res_value:
-        #             qg_value = qg_value + value[0] - value[1]
-        #     tree.insert("", 'end', values=(
-        #     qg_value, i['title'], i['pub_time'], i['discuss_num'], i['discuss'], i['huifu'], i['context']))  # 插入数据，
+
+        tree.heading("1", text="整体评论情感倾向")
+        tree.heading("2", text="评论内容")
+        tree.heading("3", text="回复内容")
+        context = ""
+        for index, i in enumerate(reallyresult):
+            try:
+                # 该条新闻有评论内容
+                if i['discuss_num'] and i['discuss_num'] != "0":
+                    context = "".join(i['discuss']) + ',' + "".join(i['huifu'])
+                    qg_value = hv.HmmV().baum_welch_train(context)
+                    tree.insert("", 'end', values=(
+                    qg_value,i['discuss'], i['huifu']))  # 插入数据
+            except Exception as e:
+                print(e)
         tree.pack()
         b = tk.Button(self.window, text='返回主界面', command=self.ex_main)
         b.pack()
@@ -154,7 +149,7 @@ class softApp(threading.Thread):
         label = tk.Label(self.window, text='信息列表', font=('Arial', 12), width=30, height=2)
         label.pack()
         b = tk.Button(self.window, text='评论情感分析', font=('Arial', 12), width=20, height=1, command=self.qg_table_show)
-        b.pack()
+
 
         # 获取数据
         result = self.txh_obj.redis_con.lrange("tengxun_news",0,-1)
@@ -197,6 +192,7 @@ class softApp(threading.Thread):
         tree.pack()
         b_redian = tk.Button(self.window, text='热点话题', font=('Arial', 12), width=20, height=1,
                              command=lambda: self.redian_words(reallyresult))
+        b.pack()
         b_redian.pack()
         b = tk.Button(self.window, text='返回主界面', command=self.ex_main)
         b.pack()
@@ -207,26 +203,29 @@ class softApp(threading.Thread):
         :return:
         '''
         # 退出界面
-        self.exit()
-        self.new_name = "热点话题管理"
+        try:
+            self.exit()
+            self.new_name = "热点话题管理"
 
-        redian_context = ""
-        for i in data:
-            try:
-                redian_context = redian_context + i["title"]
-            except Exception as e:
-                print(e)
-        data_dict = m_kmeans.run(redian_context)
-        # 词云
-        b_wordclound = tk.Button(self.window, text='热点话题词云', font=('Arial', 12), width=20, height=1,
-                             command=lambda: self.word_clound(redian_context))
-        b_kmeans = tk.Button(self.window, text='开始聚类', font=('Arial', 12), width=20, height=1,
-                             command=lambda: self.redian_kmeans_via(data_dict))
-        b_wordclound.pack()
-        b_kmeans.pack()
-        b_remain = tk.Button(self.window, text='返回主界面', command=self.ex_main)
-        b_remain.pack()
-        self.ex_page()
+            redian_context = ""
+            for i in data:
+                try:
+                    redian_context = redian_context + i["title"]
+                except Exception as e:
+                    print(e)
+            data_dict = m_kmeans.run(redian_context)
+            # 词云
+            b_wordclound = tk.Button(self.window, text='热点话题词云', font=('Arial', 12), width=20, height=1,
+                                 command=lambda: self.word_clound(redian_context))
+            b_kmeans = tk.Button(self.window, text='开始聚类', font=('Arial', 12), width=20, height=1,
+                                 command=lambda: self.redian_kmeans_via(data_dict))
+            b_wordclound.pack()
+            b_kmeans.pack()
+            b_remain = tk.Button(self.window, text='返回主界面', command=self.ex_main)
+            b_remain.pack()
+            self.ex_page()
+        except Exception as e:
+            print(e)
     def redian_kmeans_via(self,k_data):
         '''
         热点话题聚类展示

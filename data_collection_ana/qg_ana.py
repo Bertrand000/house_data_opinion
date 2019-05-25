@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import jieba
+import os
 import numpy as np
 
 '''
@@ -8,9 +9,10 @@ import numpy as np
  @Date  : 2019/5/20
  @Desc  : 情感分析
 '''
-# 打开词典文件，返回列表
-def open_dict(Dict='hahah',path = './'):
-    path = path + '%s.txt' %Dict
+
+def open_dict(Dict='',path = '/'):
+    module_path = os.path.dirname(__file__)
+    path = module_path + path + '%s.txt' %Dict
     dictionary = open(path, 'r', encoding='utf-8')
     dict = []
     for word in dictionary:
@@ -29,31 +31,31 @@ posdict = open_dict(Dict='positive')
 negdict = open_dict(Dict = 'negative')
 
 degree_word = open_dict(Dict = '程度级别词语',path='./')
-mostdict = degree_word[degree_word.index('extreme')+1: degree_word.index('very')] #权重4，即在情感前乘以3
-verydict = degree_word[degree_word.index('very')+1: degree_word.index('more')] #权重3
-moredict = degree_word[degree_word.index('more')+1: degree_word.index('ish')]#权重2
-ishdict = degree_word[degree_word.index('ish')+1: degree_word.index('last')]#权重0.5
+mostdict = degree_word[degree_word.index('extreme')+1: degree_word.index('very')]
+verydict = degree_word[degree_word.index('very')+1: degree_word.index('more')]
+moredict = degree_word[degree_word.index('more')+1: degree_word.index('ish')]
+ishdict = degree_word[degree_word.index('ish')+1: degree_word.index('last')]
 
 def sentiment_score_list(dataset):
     seg_sentence = dataset.split('。')
 
     count1 = []
     count2 = []
-    for sen in seg_sentence: # 循环遍历每一个评论
-        segtmp = jieba.lcut(sen, cut_all=False) # 把句子进行分词，以列表的形式返回
-        i = 0 #记录扫描到的词的位置
-        a = 0 #记录情感词的位置
-        poscount = 0 # 积极词的第一次分值
-        poscount2 = 0 # 积极反转后的分值
-        poscount3 = 0 # 积极词的最后分值（包括叹号的分值）
+    for sen in seg_sentence:
+        segtmp = jieba.lcut(sen, cut_all=False)
+        i = 0
+        a = 0
+        poscount = 0
+        poscount2 = 0
+        poscount3 = 0
         negcount = 0
         negcount2 = 0
         negcount3 = 0
         for word in segtmp:
-            if word in posdict: # 判断词语是否是情感词
+            if word in posdict:
                 poscount +=1
                 c = 0
-                for w in segtmp[a:i]: # 扫描情感词前的程度词
+                for w in segtmp[a:i]:
                     if w in mostdict:
                         poscount *= 4.0
                     elif w in verydict:
@@ -63,7 +65,7 @@ def sentiment_score_list(dataset):
                     elif w in ishdict:
                         poscount *= 0.5
                     elif w in deny_word: c+= 1
-                if judgeodd(c) == 'odd': # 扫描情感词前的否定词数
+                if judgeodd(c) == 'odd':
                     poscount *= -1.0
                     poscount2 += poscount
                     poscount = 0
@@ -73,7 +75,7 @@ def sentiment_score_list(dataset):
                     poscount3 = poscount + poscount2 + poscount3
                     poscount = 0
                 a = i+1
-            elif word in negdict: # 消极情感的分析，与上面一致
+            elif word in negdict:
                 negcount += 1
                 d = 0
                 for w in segtmp[a:i]:
@@ -97,15 +99,13 @@ def sentiment_score_list(dataset):
                     negcount3 = negcount + negcount2 + negcount3
                     negcount = 0
                 a = i + 1
-            elif word == '！' or word == '!': # 判断句子是否有感叹号
-                for w2 in segtmp[::-1]: # 扫描感叹号前的情感词，发现后权值+2，然后退出循环
+            elif word == '！' or word == '!':
+                for w2 in segtmp[::-1]:
                     if w2 in posdict or negdict:
                         poscount3 += 2
                         negcount3 += 2
                         break
             i += 1
-
-            # 以下是防止出现负数的情况
             pos_count = 0
             neg_count = 0
             if poscount3 <0 and negcount3 > 0:

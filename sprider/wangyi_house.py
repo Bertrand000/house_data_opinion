@@ -1,18 +1,11 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-import configparser
-import redis
 import requests
 import json
 import jsonpath
 import time
-import sys
-import threading
 import random
-import re
-import pymysql
-import uuid
 from bs4 import BeautifulSoup
 
 # 获取配置
@@ -233,19 +226,3 @@ class WangyiHouse():
 
     def run(self):
         self.index_data()
-
-if __name__ == '__main__':
-    '''
-    多线程启动
-    '''
-    threads = []
-    threads_num = int(cfg.get("sys", "thread_num"))
-    for i in range(0, threads_num):
-        m = WangyiHouse(i, "thread" + str(i))
-        threads.append(m)
-
-    for i in range(0, threads_num):
-        threads[i].start()
-
-    for i in range(0, threads_num):
-        threads[i].join()

@@ -13,11 +13,9 @@ from tkinter import ttk
 from tkinter import *
 
 from data_collection_ana import hmm_tag
-from data_vis import hmmv as hv
 import data_vis.kmeans as m_kmeans
 from sprider import tengxun_house as txh
 from sprider import wangyi_house as wyh
-# from data_collection_ana import qg_ana
 
 # 获取配置
 cfg = configparser.ConfigParser()

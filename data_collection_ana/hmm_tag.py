@@ -28,24 +28,6 @@ for word in dictionary_pas:
     list.append(POS)
     words_list.append(tuple(list))
 corpus = np.array(words_list)
-# corpus = np.array([
-#     ('我', NOUN), ('很', ADV), ('菜', ADJ), ('。', END),
-#     ('我', NOUN), ('好', ADV), ('菜', ADJ), ('。', END),
-#     ('我', NOUN), ('很', ADV), ('好', ADJ), ('。', END),
-#     ('他', NOUN), ('很', ADV), ('菜', ADJ), ('。', END),
-#     ('他', NOUN), ('好', ADV), ('菜', ADJ), ('。', END),
-#     ('他', NOUN), ('很', ADV), ('好', ADJ), ('。', END),
-#     ('菜', NOUN), ('很', ADV), ('好', ADJ), ('。', END),
-#     ('我', NOUN), ('菜', ADJ), ('。', END),
-#     ('我', NOUN), ('好', ADJ), ('。', END),
-#     ('他', NOUN), ('菜', ADJ), ('。', END),
-#     ('他', NOUN), ('好', ADJ), ('。', END),
-#     ('菜', NOUN), ('好', ADJ), ('。', END),
-#     ('我', NOUN), ('好', ADV), ('好', ADJ), ('。', END),
-#     ('他', NOUN), ('好', ADV), ('好', ADJ), ('。', END),
-#     ('是', END),('的', END),
-# ], dtype=str)
-
 
 words = sorted(set(corpus[:, 0]))
 tags = sorted(set(corpus[:, 1]))

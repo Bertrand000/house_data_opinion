@@ -12,11 +12,12 @@ from wordcloud import *
 from tkinter import ttk
 from tkinter import *
 
+from data_collection_ana import hmm_tag
 from data_vis import hmmv as hv
 import data_vis.kmeans as m_kmeans
 from sprider import tengxun_house as txh
 from sprider import wangyi_house as wyh
-from data_collection_ana import qg_ana
+# from data_collection_ana import qg_ana
 
 # 获取配置
 cfg = configparser.ConfigParser()
@@ -131,7 +132,7 @@ class app(threading.Thread):
                 # 该条新闻所有有评论内容
                 if i['discuss_num'] and i['discuss_num'] != "0":
                     context = "".join(i['discuss']) + ',' + "".join(i['huifu'])
-                    qg_value = hv.HmmV().baum_welch_train(context)
+                    qg_value = hmm_tag.viterbi(context)
                     if qg_value>0:
                         tree.insert("", 'end', values=(
                         "倾向好评，倾向值："+str(qg_value),i['discuss'], i['huifu']))  # 插入数据

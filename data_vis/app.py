@@ -405,8 +405,8 @@ class app(threading.Thread):
         分类后的数据情感分析
         :return:
         '''
+        tk.messagebox.showinfo("提示","数据较多可能会使用较长时间分析请稍候......")
         self.exit()
-
         label = tk.Label(self.window, text='情感分析信息列表', font=('Arial', 9), width=80, height=2)
         label.pack()
         # table
@@ -521,8 +521,6 @@ class app(threading.Thread):
         b1.config(command=lambda: self.begin_get(b1, label))
         label.pack()
         b1.pack()
-        b_main = tk.Button(spri_manage, text='返回主界面', command=self.ex_main)
-        b_main.pack()
         screenwidth = spri_manage.winfo_screenwidth()
         screenheight = spri_manage.winfo_screenheight()
         size = '%dx%d+%d+%d' % (500, 300, (screenwidth - 500) / 2, (screenheight - 300) / 2)
@@ -609,7 +607,7 @@ class app(threading.Thread):
         :param new_name: 新界面名称
         :return:
         '''
-        self.center_window(900, 600)
+        self.center_window(700, 520)
         self.window.title(self.new_name)
         self.window.mainloop()
 

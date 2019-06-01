@@ -8,7 +8,7 @@ SMOOTHNESS = 1e-8
 START = 'start'  # 句始tag
 NEG = 'negative' # 积极词
 POS = 'positive' # 消极词
-END = 'end' #句尾tag
+END = 'end' # 句尾tag
 
 """数据预处理"""
 words_list = []

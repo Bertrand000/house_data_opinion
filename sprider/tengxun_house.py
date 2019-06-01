@@ -199,47 +199,86 @@ class TengxunHouse():
         # 保存数据
         # self.save_data(my_uuid,cmt_id,title,pub_time,discuss_num, context,discuss_re)
 
-    # def save_data(self, uuid,cmt_id, title, pub_time, discuss_num, new_context,discuss_redis):
-    #     '''
-    #     mysql保存数据
-    #     :param title: 标题
-    #     :param time: 时间
-    #     :param discuss_num: 评论数
-    #     :param discuss: 评论
-    #     :param re_discuss: 评论回复
-    #     :return:
-    #     '''
-    #     # 保存新闻
-    #     news_sql = '''
-    #     REPLACE INTO
-    #                       news(cmt_id,title,pub_time,discuss_num,uuid,context)
-    #                       VALUES(%s,%s,%s,%s,%s,%s)
-    #     '''
-    #     # 保存评论
-    #     discuss_sql = '''
-    #     REPLACE INTO
-    #                       discuss(content,dis_time,pid,new_uuid)
-    #                       VALUES(%s,%s,%s,%s)
-    #     '''
-    #     # 评论回复
-    #     re_discuss_sql = '''
-    #             REPLACE INTO
-    #                               re_discuss(content,redis_time,pid,new_uuid)
-    #                               VALUES(%s,%s,%s,%s)
-    #             '''
-    #     # 保存评论回复
-    #     try:
-    #         self.db_cursor.execute(news_sql,(cmt_id if cmt_id else "0", str(title), str(pub_time), discuss_num, uuid, str(new_context)))
-    #         if discuss_num:
-    #             if discuss_redis['pinlun']:
-    #                 for discuss in discuss_redis['pinlun']:
-    #                     self.db_cursor.execute(discuss_sql, (discuss['content'], discuss['time'], discuss['id'], uuid))
-    #             if discuss_redis['huifu']:
-    #                 for re_dis in discuss_redis['huifu']:
-    #                     self.db_cursor.execute(re_discuss_sql,(re_dis['content'],re_dis['time'],re_dis['parent'],uuid))
-    #         self.db.commit()
-    #     except Exception as e:
-    #         print(e)
+    def _sget_new_data(self,url):
+        json_data = {}
+        resp = requests.session().get(url,headers=self.headers,timeout=5)
+        try:
+            BS = BeautifulSoup(resp.text, "html.parser")
+            P = BS.find_all("p")
+
+            context = ""
+            for p in P:
+                context += p.text
+            json_data['context'] = self.format_str(str(P))
+            title = BS.find("title").text
+            json_data['title'] = title
+            pub_time = BS.find("span", class_="a_time")
+
+            if not pub_time:
+                pub_time = BS.find("span", class_="article-time")
+            if not pub_time:
+                pub_time = BS.find("span", class_="pubTime")
+            pub_time = pub_time.text
+            json_data['pub_time'] = pub_time
+            cmt_id = re.findall("cmt_id = (.+?);", resp.text)
+            if cmt_id:
+                cmt_id = cmt_id[0]
+            discuss_num = int(self.get_discuss_number(cmt_id)) if cmt_id else 0
+            json_data['discuss_num'] = discuss_num
+            discuss_re = self.get_discuss(cmt_id) if cmt_id else ["",""]
+            json_data['discuss'] = ""
+            json_data['huifu'] = ""
+            if discuss_re[0]:
+                json_data['discuss'] = discuss_re[0]
+            if discuss_re[1]:
+                json_data['huifu'] = discuss_re[1]
+            self.redis_con.lpush("tengxun_news",str(json_data))
+        except Exception as e:
+            print(e)
+        # my_uuid = str(uuid.uuid4())
+        # 保存数据
+        # self.save_data(my_uuid,cmt_id,title,pub_time,discuss_num, context,discuss_re)
+    def _save_data(self, uuid,cmt_id, title, pub_time, discuss_num, new_context,discuss_redis):
+        '''
+        mysql保存数据
+        :param title: 标题
+        :param time: 时间
+        :param discuss_num: 评论数
+        :param discuss: 评论
+        :param re_discuss: 评论回复
+        :return:
+        '''
+        # 保存新闻
+        news_sql = '''
+        REPLACE INTO
+                          news(cmt_id,title,pub_time,discuss_num,uuid,context)
+                          VALUES(%s,%s,%s,%s,%s,%s)
+        '''
+        # 保存评论
+        discuss_sql = '''
+        REPLACE INTO
+                          discuss(content,dis_time,pid,new_uuid)
+                          VALUES(%s,%s,%s,%s)
+        '''
+        # 评论回复
+        re_discuss_sql = '''
+                REPLACE INTO
+                                  re_discuss(content,redis_time,pid,new_uuid)
+                                  VALUES(%s,%s,%s,%s)
+                '''
+        # 保存评论回复
+        try:
+            self.db_cursor.execute(news_sql,(cmt_id if cmt_id else "0", str(title), str(pub_time), discuss_num, uuid, str(new_context)))
+            if discuss_num:
+                if discuss_redis['pinlun']:
+                    for discuss in discuss_redis['pinlun']:
+                        self.db_cursor.execute(discuss_sql, (discuss['content'], discuss['time'], discuss['id'], uuid))
+                if discuss_redis['huifu']:
+                    for re_dis in discuss_redis['huifu']:
+                        self.db_cursor.execute(re_discuss_sql,(re_dis['content'],re_dis['time'],re_dis['parent'],uuid))
+            self.db.commit()
+        except Exception as e:
+            print(e)
 
     def get_discuss_number(self, cmt_id):
         '''

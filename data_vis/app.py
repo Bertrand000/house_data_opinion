@@ -7,16 +7,19 @@ import configparser
 import json
 import threading
 import matplotlib.pyplot as plt
+import uuid
+import os
 from matplotlib.font_manager import FontProperties
 from wordcloud import *
 from tkinter import ttk
 from tkinter import *
 
+from data_vis import pie_utile
+from data_vis import pre_utile
 from data_collection_ana import hmm_tag
 import data_vis.kmeans as m_kmeans
 from sprider import tengxun_house as txh
 from sprider import wangyi_house as wyh
-
 # 获取配置
 cfg = configparser.ConfigParser()
 cfg.read("./config.ini")
@@ -124,7 +127,9 @@ class app(threading.Thread):
         tree.heading("1", text="评论以及回复整体情感倾向")
         tree.heading("2", text="评论内容")
         tree.heading("3", text="回复内容")
-        # context = ""
+        nice_sum = 0
+        bad_sum = 0
+        mid_sum = 0
         for index, i in enumerate(reallyresult):
             try:
                 # 该条新闻所有有评论内容
@@ -132,21 +137,51 @@ class app(threading.Thread):
                     context = "".join(i['discuss']) + ',' + "".join(i['huifu'])
                     qg_value = hmm_tag.viterbi(context)
                     if qg_value>0:
+                        nice_sum = nice_sum + 1
                         tree.insert("", 'end', values=(
                         "倾向好评，倾向值："+str(qg_value),i['discuss'], i['huifu']))  # 插入数据
                     elif qg_value<0:
+                        bad_sum = bad_sum + 1
                         tree.insert("", 'end', values=(
                         "倾向差评，倾向值："+str(qg_value),i['discuss'], i['huifu']))  # 插入数据
                     else:
+                        mid_sum = mid_sum + 1
                         tree.insert("", 'end', values=(
                             "未找到态度倾向" , i['discuss'], i['huifu']))  # 插入数据
             except Exception as e:
                 print(e)
         tree.pack()
+        context = "对于新闻评论情感分析得出如下结论："
+        if nice_sum>bad_sum:
+            zongjie = "积极态度数：%i,消极态度数：%i，无情感倾向数：%i,民众对房产市场普遍持积极态度"%(nice_sum,bad_sum,mid_sum)
+        elif nice_sum<bad_sum:
+            zongjie = "积极态度数：%i,消极态度数：%i，无情感倾向数：%i,民众对房产市场普遍持消极态度"%(nice_sum,bad_sum,mid_sum)
+        else:
+            zongjie = "积极态度数：%i,消极态度数：%i，无情感倾向数：%i,民众对房产市场看得很淡"%(nice_sum,bad_sum,mid_sum)
+        b_pie = tk.Button(self.window, text='情感分析饼图展示', font=('Arial', 12), width=20, height=1,
+                           command=lambda: self.show_pie(["好评", "差评", "态度不明"], [nice_sum, bad_sum, mid_sum]))
+        b_pie.pack()
+        b_word = tk.Button(self.window, text='导出分析文档', font=('Arial', 12), width=20, height=1,
+                           command=lambda: self.save_word(["好评","差评","态度不明"],[nice_sum,bad_sum,mid_sum],context,zongjie,"新闻情感分析报告"))
+        b_word.pack()
         b = tk.Button(self.window, text='返回主界面', command=self.ex_main)
         b.pack()
         self.ex_page()
+    def show_pie(self,sizes,labels):
+        pie_utile.cre_bing(sizes,labels)
 
+    def save_word(self,sizes,labels,context,zongjie,file_type="分析报告"):
+        # 保存图片到本地
+        dir_path = os.path.dirname(os.path.abspath(__file__))
+        uuid_str = str(uuid.uuid4())
+        img_path = dir_path + '\\pie\\' + uuid_str + ".jpg"
+        pie_utile.cre_bing(sizes,labels,img_path)
+        # 根据图片生成图表
+        pre_utile.gen_docfile(context,zongjie,img_path,dir_path+"\\word\\"+file_type+"_"+uuid_str+".doc",file_type)
+        # 删除图片
+        os.remove(img_path)
+        tk.messagebox.showinfo('提示', '导出分析报告成功')
+        self.qg_table_show()
     def news_table_show(self):
         '''
         列表展示
@@ -331,7 +366,7 @@ class app(threading.Thread):
             except Exception as err:
                 print(err)
         # 获取所有数据中有该词数据的新闻或者评论加入词云预备---------------
-        context = []
+        list_context = []
         for dict_data in dict_datas:
             for key in dict_data:
                 # 处理词云数据
@@ -339,7 +374,7 @@ class app(threading.Thread):
                     if i["discuss_num"]:
                         str_new = str(i["discuss"]) + str(i["huifu"])
                         if key in str_new:
-                            context.append(str_new)
+                            list_context.append(str_new)
                 try:
                     # 插入数据
                     tree.insert("", 'end', values=(key, dict_data[key]))
@@ -348,18 +383,87 @@ class app(threading.Thread):
         tree.pack()
 
         # 词云展示
-        context = "".join(context)
+        context = "".join(list_context)
         # 聚类统计图
         b_cloud = tk.Button(self.window, text='排名前10话题柱状图统计', font=('Arial', 12), width=20, height=1,
                             command=lambda: self.xy_img(dict_datas))
         b_cloud.pack()
-        b_cloud = tk.Button(self.window, text='统计词云图', font=('Arial', 12), width=20, height=1,
+        b_cloud = tk.Button(self.window, text='包含关键字的数据词云图', font=('Arial', 12), width=20, height=1,
                             command=lambda: self.word_clound(context))
+        b_cloud.pack()
+
+        b_cloud = tk.Button(self.window, text='包含关键字的情感分析', font=('Arial', 12), width=20, height=1,
+                            command=lambda: self.kmeans_qg(list_context,title_name))
         b_cloud.pack()
 
         b_remain = tk.Button(self.window, text='返回主界面', command=self.ex_main)
         b_remain.pack()
 
+        self.ex_page()
+    def kmeans_qg(self,list_context,file_type):
+        '''
+        分类后的数据情感分析
+        :return:
+        '''
+        self.exit()
+
+        label = tk.Label(self.window, text='情感分析信息列表', font=('Arial', 9), width=80, height=2)
+        label.pack()
+        # table
+        title = ['1', '2']
+        tree = ttk.Treeview(self.window, columns=title, show='headings')  # 表格
+
+        xscroll = Scrollbar(self.window, orient=HORIZONTAL, command=tree.xview)
+        tree.configure(xscrollcommand=xscroll.set)
+        xscroll.pack(side=BOTTOM, fill=X)
+        yscrollbar = Scrollbar(self.window, orient=VERTICAL, command=tree.yview)
+        tree.configure(yscrollcommand=yscrollbar.set)
+        yscrollbar.pack(side=RIGHT, fill=Y)
+
+        tree.column("1")
+        tree.column("2")
+        tree.heading("1", text="评论以及回复整体情感倾向")
+        tree.heading("2", text="评论以及回复内容")
+        nice_sum = 0
+        bad_sum = 0
+        mid_sum = 0
+        for index, i in enumerate(list_context):
+            try:
+                # 该条新闻所有有评论内容
+                context = i
+                qg_value = hmm_tag.viterbi(context)
+                if qg_value>0:
+                    nice_sum = nice_sum + 1
+                    tree.insert("", 'end', values=(
+                    "倾向好评，倾向值："+str(qg_value),i))  # 插入数据
+                elif qg_value<0:
+                    bad_sum = bad_sum + 1
+                    tree.insert("", 'end', values=(
+                    "倾向差评，倾向值："+str(qg_value),i))  # 插入数据
+                else:
+                    mid_sum = mid_sum + 1
+                    tree.insert("", 'end', values=(
+                        "未找到态度倾向" , i))  # 插入数据
+            except Exception as e:
+                print(e)
+        tree.pack()
+        context = "对于聚类后的新闻评论情感分析得出如下结论："
+        if nice_sum > bad_sum:
+            zongjie = "积极态度数：%i,消极态度数：%i，无情感倾向数：%i,民众对房产市场普遍持积极态度" % (nice_sum, bad_sum, mid_sum)
+        elif nice_sum < bad_sum:
+            zongjie = "积极态度数：%i,消极态度数：%i，无情感倾向数：%i,民众对房产市场普遍持消极态度" % (nice_sum, bad_sum, mid_sum)
+        else:
+            zongjie = "积极态度数：%i,消极态度数：%i，无情感倾向数：%i,民众对房产市场看得很淡" % (nice_sum, bad_sum, mid_sum)
+        b_pie = tk.Button(self.window, text='情感分析饼图展示', font=('Arial', 12), width=20, height=1,
+                           command=lambda: self.show_pie(["好评", "差评", "态度不明"], [nice_sum, bad_sum, mid_sum]))
+        b_pie.pack()
+        b_word = tk.Button(self.window, text='导出分析文档', font=('Arial', 12), width=20, height=1,
+                           command=lambda: self.save_word(["好评", "差评", "态度不明"], [nice_sum, bad_sum, mid_sum], context,
+                                                          zongjie,file_type+"分析报告"))
+        b_word.pack()
+
+        b = tk.Button(self.window, text='返回主界面', command=self.ex_main)
+        b.pack()
         self.ex_page()
     def xy_img(self,dict_datas):
         '''
@@ -505,7 +609,7 @@ class app(threading.Thread):
         :param new_name: 新界面名称
         :return:
         '''
-        self.center_window(600, 400)
+        self.center_window(900, 600)
         self.window.title(self.new_name)
         self.window.mainloop()
 

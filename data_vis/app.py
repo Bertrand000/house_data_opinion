@@ -299,9 +299,6 @@ class app(threading.Thread):
         self.exit()
         self.new_name = title_name
         # table
-        # table
-
-        # table
         title = ['1', '2']
         tree = ttk.Treeview(self.window, columns=title, show='headings')  # 表格
         xscroll = Scrollbar(self.window, orient=HORIZONTAL, command=tree.xview)
@@ -315,8 +312,34 @@ class app(threading.Thread):
 
         tree.heading("1", text="话题词")  # 显示表头
         tree.heading("2", text="词频")
+
+        # 词云处理
+        # redis查询---------------------------------------------------
+        # 获取数据
+        result = self.txh_obj.redis_con.lrange("tengxun_news", 0, -1)
+        # 定义一个空列表存储取出的元素
+        reallyresult = []
+        # 遍历取出的全部数据，实际上是列表类型的bytes数据类型
+        for item in result:
+            try:
+                item = str(item, encoding='utf-8').replace("\"", "“").replace("'", "\"").replace("True",
+                                                                                                 "true").replace(
+                    "None", "null").replace("False", "false").replace("\\xa0", " ")
+                item = json.loads(item)
+                # 空列表追加数据
+                reallyresult.append(item)
+            except Exception as err:
+                print(err)
+        # 获取所有数据中有该词数据的新闻或者评论加入词云预备---------------
+        context = []
         for dict_data in dict_datas:
             for key in dict_data:
+                # 处理词云数据
+                for i in reallyresult:
+                    if i["discuss_num"]:
+                        str_new = str(i["discuss"]) + str(i["huifu"])
+                        if key in str_new:
+                            context.append(str_new)
                 try:
                     # 插入数据
                     tree.insert("", 'end', values=(key, dict_data[key]))
@@ -325,10 +348,13 @@ class app(threading.Thread):
         tree.pack()
 
         # 词云展示
-        context = ""
+        context = "".join(context)
         # 聚类统计图
         b_cloud = tk.Button(self.window, text='排名前10话题柱状图统计', font=('Arial', 12), width=20, height=1,
                             command=lambda: self.xy_img(dict_datas))
+        b_cloud.pack()
+        b_cloud = tk.Button(self.window, text='统计词云图', font=('Arial', 12), width=20, height=1,
+                            command=lambda: self.word_clound(context))
         b_cloud.pack()
 
         b_remain = tk.Button(self.window, text='返回主界面', command=self.ex_main)

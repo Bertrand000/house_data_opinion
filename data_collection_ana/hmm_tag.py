@@ -57,6 +57,7 @@ for word, tag in corpus:
 # 频数 --> 概率对数
 start_p = np.log(start_p / sum(start_p))
 for i in range(T):
+    test = emit_p[i] / sum(emit_p[i])
     emit_p[i] = np.log(emit_p[i] / sum(emit_p[i]))
     trans_p[i] = np.log(trans_p[i] / sum(trans_p[i]))
 
